@@ -15,8 +15,11 @@ up: ## Поднять весь стек (docker compose) — появится н
 down: ## Остановить стек
 	@echo "TODO(0.5): docker compose -f infra/compose/docker-compose.yml down"
 
-backend-dev: ## Запустить backend в dev-режиме — появится на шаге 0.2
-	@echo "TODO(0.2): cd apps/backend && bun run start:dev"
+backend-dev: ## Запустить backend в dev-режиме (нужен .env или переменные окружения)
+	cd apps/backend && bun run start:dev
+
+backend-build: ## Собрать backend
+	cd apps/backend && bun run build
 
 strapi-dev: ## Запустить Strapi в dev-режиме — этап 1
 	@echo "TODO(этап 1): cd apps/strapi && bun run develop"
