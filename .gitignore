@@ -1,0 +1,33 @@
+# --- env / secrets ---
+.env
+.env.*
+!.env.example
+infra/certs/*.key
+infra/certs/*.pem
+!infra/certs/README.md
+
+# --- node ---
+node_modules/
+dist/
+.output/
+build/
+*.tsbuildinfo
+
+# --- strapi ---
+apps/strapi/.cache/
+apps/strapi/build/
+apps/strapi/dist/
+apps/strapi/public/uploads/
+!apps/strapi/public/uploads/.gitkeep
+
+# --- logs / tmp ---
+*.log
+logs/
+tmp/
+.DS_Store
+Thumbs.db
+
+# --- backups (локальные дампы не коммитим) ---
+infra/backup/*.dump
+infra/backup/*.sql
+infra/backup/*.tar.gz
