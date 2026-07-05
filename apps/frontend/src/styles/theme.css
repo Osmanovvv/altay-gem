@@ -1,0 +1,46 @@
+/*
+ * Design system — Жемчужина Алтая
+ *
+ * NOTE: На этом стеке (Tailwind v4 + Lightning CSS) удалённые @import ломают
+ * сборку, поэтому Cormorant Garamond и Golos Text подключаются через <link>
+ * в src/routes/__root.tsx. Здесь — только токены дизайн-системы.
+ */
+
+:root {
+  /* ---------- Цвета ---------- */
+  /* Фоны */
+  --color-bg-dark: #1a2a20;
+  --color-bg-dark-deep: #111c15;
+  --color-bg-cream: #faf7f2;
+
+  /* Акценты — мёд */
+  --color-accent: #c8963e;
+  --color-accent-light: #e8b44f;
+  --color-accent-dark: #a67c2e;
+
+  /* Текст */
+  --color-text: #1f1a0e;
+  --color-text-muted: #5c5545;
+  --color-text-on-dark: #f5efe0;
+
+  /* Семантические */
+  --color-success: #3b6e4a;
+  --color-error: #a63d3d;
+
+  /* ---------- Типографика ---------- */
+  --font-display: "Cormorant Garamond", serif;
+  --font-body: "Golos Text", sans-serif;
+
+  /* ---------- Тени ---------- */
+  --shadow-card: 0 2px 12px rgba(26, 42, 32, 0.08), 0 1px 3px rgba(26, 42, 32, 0.06);
+  --shadow-elevated: 0 12px 32px rgba(26, 42, 32, 0.16), 0 4px 10px rgba(26, 42, 32, 0.08);
+  --shadow-glow: 0 0 24px rgba(200, 150, 62, 0.35), 0 0 48px rgba(232, 180, 79, 0.18);
+
+  /* ---------- Скругления ---------- */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  /* ---------- Переходы ---------- */
+  --transition-smooth: 300ms ease-out;
+}

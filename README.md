@@ -14,7 +14,7 @@ altay-gem/
   apps/
     backend/        # NestJS: каталог, остатки, заказы, промокоды, интеграции (шаг 0.2+)
     strapi/         # Strapi: админ-панель контента (этап 1)
-    frontend/       # git submodule → Neeklo1606/altai-gem-showcase (витрина, TanStack Start)
+    frontend/       # витрина (TanStack Start) — вшита в монорепо, весь код здесь
   infra/
     docker/         # Dockerfile-ы по сервисам
     nginx/          # конфиги реверс-прокси + TLS
@@ -26,26 +26,19 @@ altay-gem/
   Makefile          # единые команды для разнородных приложений
 ```
 
-## Фронтенд: вариант A (submodule)
+## Фронтенд
 
-Витрина живёт в отдельном репозитории `Neeklo1606/altai-gem-showcase` (ветка `main`,
-синхронизируется с Lovable) и подключена сюда как **git submodule** `apps/frontend`,
-закреплённый на конкретном коммите.
+Витрина (изначально из `Neeklo1606/altai-gem-showcase`, TanStack Start) **вшита прямо
+в монорепо** — весь код проекта хранится в одном репозитории `Osmanovvv/altay-gem`.
+Отдельного сабмодуля и связи с исходным репозиторием нет.
 
-Правила работы с фронтом (из `apps/frontend/AGENTS.md`):
-
-- **Не переписывать опубликованную историю** — никаких force-push / rebase / amend
-  уже запушенных коммитов в `main`.
-- В сам репозиторий фронта мы не пушим (репозиторий не наш); правки согласуются
-  с владельцем. Обновление ссылки сабмодуля: `git submodule update --remote apps/frontend`
-  + коммит нового указателя здесь.
-
-Клонирование монорепо со сабмодулем:
+Локально уже применён фикс: фото товаров переведены с внешнего CDN (Unsplash) на
+локальные файлы `apps/frontend/public/img/stock` — надёжнее и подходит под РФ-хостинг.
+На Этапе 1 фото и данные переедут на наш API/Strapi.
 
 ```bash
-git clone --recurse-submodules https://github.com/Osmanovvv/altay-gem.git
-# или, если уже склонировано без сабмодулей:
-git submodule update --init --recursive
+git clone https://github.com/Osmanovvv/altay-gem.git
+cd altay-gem/apps/frontend && bun install && bun run dev
 ```
 
 ## Управление рабочими областями
