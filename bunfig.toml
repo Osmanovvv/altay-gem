@@ -1,0 +1,5 @@
+[install]
+# 24h supply-chain guard: не ставим версии пакетов, опубликованные менее суток назад.
+minimumReleaseAge = 86400
+# Исключения из правила — только по явному согласованию.
+minimumReleaseAgeExcludes = ["@lovable.dev/vite-tanstack-config", "@lovable.dev/mcp-js", "@lovable.dev/vite-plugin-dev-server-bridge", "@lovable.dev/vite-plugin-hmr-gate"]
