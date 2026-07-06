@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { AppController } from './app.controller';
 import { validateEnv } from './config/env';
+import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -15,6 +16,7 @@ import { HealthController } from './health/health.controller';
       // .env лежит в корне монорепо; локальный apps/backend/.env имеет приоритет
       envFilePath: ['.env', '../../.env'],
     }),
+    DatabaseModule,
     LoggerModule.forRoot({
       pinoHttp: {
         genReqId: (req: IncomingMessage) =>

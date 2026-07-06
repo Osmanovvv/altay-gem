@@ -7,8 +7,23 @@ on:
 
 jobs:
   backend:
-    name: backend (lint, test, build)
+    name: backend (lint, test, build, migrate)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        # тот же пин, что в infra/compose/images.env
+        image: postgres:16@sha256:fe03a7605299a34ddf5e4f285dff78c3d7190a576b3c6b46f2fcff69f4bffd54
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: apps/backend
@@ -25,6 +40,10 @@ jobs:
         run: bun test src
       - name: Build
         run: bun run build
+      - name: Migrations on fresh DB
+        run: bun run db:migrate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
   frontend:
     name: frontend (build)
