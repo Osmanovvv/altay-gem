@@ -372,6 +372,86 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     return response;
   }
 
+  // ---------- предрасчёт доставки для сводки чекаута (ТЗ 6.7) ----------
+
+  async quoteDelivery(dto: {
+    deliveryMethod: DeliveryMethod;
+    items: Array<{ id: string; quantity: number }>;
+    promoCode?: string;
+  }) {
+    const internal = await this.catalog.internalBySlug();
+    const unknown = dto.items.filter((i) => !internal.get(i.id));
+    if (unknown.length) {
+      throw new BadRequestException({
+        code: 'ORDER_VALIDATION',
+        message: 'Неизвестные позиции корзины',
+        details: unknown.map((i) => ({ id: i.id, reason: 'unknown_item' })),
+      });
+    }
+    const lines = dto.items.map((i) => ({
+      p: internal.get(i.id) as ProductInternal,
+      quantity: i.quantity,
+    }));
+    const subtotalRub = lines.reduce(
+      (s, l) => s + l.p.priceRub * l.quantity,
+      0,
+    );
+
+    let discountRub = 0;
+    if (dto.promoCode?.trim()) {
+      const promo = await this.promocodes.validate(dto.promoCode, dto.items);
+      if (!promo.valid) {
+        throw new BadRequestException({
+          code: 'PROMO_INVALID',
+          message: promo.message,
+          details: [{ reason: promo.reason }],
+        });
+      }
+      discountRub = promo.discountRub;
+    }
+
+    const tariffsRaw = await this.strapi.deliveryTariffs();
+    const tariffs: DeliveryTariffs = {
+      courierNskPriceRub: Number(tariffsRaw.courierNskPriceRub ?? 0),
+      freeDeliveryThresholdRub:
+        tariffsRaw.freeDeliveryThresholdRub == null
+          ? null
+          : Number(tariffsRaw.freeDeliveryThresholdRub),
+      russiaWeightTiers:
+        (tariffsRaw.russiaWeightTiers as DeliveryTariffs['russiaWeightTiers']) ??
+        [],
+    };
+    const deliveryLines = lines.map((l) => ({
+      quantity: l.quantity,
+      unitWeightG: this.catalog.unitWeightG(l.p),
+      isPerishable: l.p.isPerishable,
+    }));
+    try {
+      const deliveryRub = calcDelivery(
+        dto.deliveryMethod,
+        deliveryLines,
+        tariffs,
+        subtotalRub - discountRub,
+      );
+      return {
+        deliveryRub,
+        subtotalRub,
+        discountRub,
+        totalRub: subtotalRub - discountRub + deliveryRub,
+        weightG: deliveryLines.reduce(
+          (s, l) => s + l.unitWeightG * l.quantity,
+          0,
+        ),
+        freeDeliveryThresholdRub: tariffs.freeDeliveryThresholdRub,
+      };
+    } catch (err) {
+      if (err instanceof DeliveryNotAvailableError) {
+        throw new BadRequestException({ code: err.code, message: err.message });
+      }
+      throw err;
+    }
+  }
+
   private async resolveTargetStore(
     method: DeliveryMethod,
   ): Promise<string | null> {
