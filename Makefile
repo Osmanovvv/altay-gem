@@ -1,13 +1,10 @@
 # Единые команды монорепо «Жемчужина Алтая».
 # Цели наполняются по мере прохождения плана (шаги 0.2+).
 
-.PHONY: help up down backend-dev strapi-dev frontend-dev submodule-init
+.PHONY: help up down ps backend-dev backend-build strapi-dev frontend-dev
 
 help: ## Показать список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
-
-submodule-init: ## Инициализировать сабмодуль фронтенда
-	git submodule update --init --recursive
 
 up: ## Поднять весь стек (docker compose, с пересборкой)
 	docker compose --env-file infra/compose/images.env -f infra/compose/docker-compose.yml up -d --build
