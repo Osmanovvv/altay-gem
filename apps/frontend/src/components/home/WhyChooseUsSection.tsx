@@ -24,7 +24,19 @@ const REASONS = [
   },
 ];
 
-export function WhyChooseUsSection() {
+interface WhyChooseUsProps {
+  advantages?: Array<{ title: string; text?: string }>;
+}
+
+export function WhyChooseUsSection({ advantages }: WhyChooseUsProps) {
+  const reasons =
+    advantages && advantages.length > 0
+      ? advantages.map((a, i) => ({
+          ...REASONS[i % REASONS.length],
+          title: a.title,
+          text: a.text ?? REASONS[i % REASONS.length].text,
+        }))
+      : REASONS;
   return (
     <section
       aria-labelledby="why-title"
@@ -58,7 +70,7 @@ export function WhyChooseUsSection() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {REASONS.map((reason, index) => {
+          {reasons.map((reason, index) => {
             const Icon = reason.icon;
             return (
               <motion.article

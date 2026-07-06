@@ -9,7 +9,11 @@ const TEASER_FACTS = [
   { icon: Leaf, label: "Перга, прополис, воск и травяные сборы" },
 ];
 
-export function AboutHoneyTeaser() {
+interface AboutHoneyTeaserProps {
+  section?: { title?: string; text?: string } | null;
+}
+
+export function AboutHoneyTeaser({ section }: AboutHoneyTeaserProps) {
   return (
     <section
       aria-labelledby="about-honey-title"
@@ -43,7 +47,7 @@ export function AboutHoneyTeaser() {
               lineHeight: 1.05,
             }}
           >
-            Своя пасека, свой мёд и продукты пчеловодства
+            {section?.title ?? "Своя пасека, свой мёд и продукты пчеловодства"}
           </h2>
           <p
             className="mt-5"
@@ -55,10 +59,8 @@ export function AboutHoneyTeaser() {
               maxWidth: 620,
             }}
           >
-            Мы работаем не только как магазин: часть мёда и пчелопродуктов
-            привозим с собственной пасеки. Поэтому знаем сезон, место сбора и
-            вкус каждой партии, а покупателям можем честно подсказать сорт под
-            чай, подарок или домашнюю аптечку.
+            {section?.text ??
+              "Мы работаем не только как магазин: часть мёда и пчелопродуктов привозим с собственной пасеки. Поэтому знаем сезон, место сбора и вкус каждой партии."}
           </p>
 
           <div className="mt-8 grid gap-4">

@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
 import { Clock, Mail, MapPin, Navigation, Phone } from "lucide-react";
 
-const CONTACTS = [
+import { useSettings } from "@/context/SettingsContext";
+
+const FALLBACK_CONTACTS = [
   {
     title: "Левый берег",
     address: "Новосибирск, ул. Ватутина, 89",
@@ -15,6 +17,14 @@ const CONTACTS = [
 ];
 
 export function FindUsSection() {
+  const settings = useSettings();
+  const CONTACTS = settings?.storePoints?.length
+    ? settings.storePoints.map((p) => ({
+        title: p.name,
+        address: p.address,
+        hours: p.hours ?? "",
+      }))
+    : FALLBACK_CONTACTS;
   return (
     <section
       id="contacts"

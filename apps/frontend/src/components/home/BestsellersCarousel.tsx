@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
-import { BESTSELLERS, type Bestseller } from "@/data/bestsellers";
+import type { Bestseller } from "@/data/bestsellers";
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
-import { CATEGORIES } from "@/data/categories";
+import { gradientFor, toProduct, type ApiCard } from "@/lib/api";
 
 const BADGE_STYLES: Record<NonNullable<Bestseller["badge"]>, { bg: string; color: string }> = {
   "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
@@ -15,7 +15,25 @@ const BADGE_STYLES: Record<NonNullable<Bestseller["badge"]>, { bg: string; color
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
 
-export function BestsellersCarousel() {
+interface BestsellersCarouselProps {
+  /** Хиты продаж из админки (/home.hits). */
+  items: ApiCard[];
+}
+
+export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProps) {
+  const BESTSELLERS: Bestseller[] = hitCards.map((c) => ({
+    id: c.slug,
+    name: c.name,
+    category: c.categoryName ?? "",
+    weight: c.unit,
+    price: c.priceRub,
+    oldPrice: c.oldPriceRub ?? undefined,
+    image: c.photo ?? "",
+    imageAlt: c.name,
+    imageFallback: gradientFor(c.categorySlug),
+    badge: c.badges[0] as Bestseller["badge"],
+  }));
+  const cardBySlug = new Map(hitCards.map((c) => [c.slug, c]));
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(true);
@@ -51,10 +69,15 @@ export function BestsellersCarousel() {
 
   // Бестселлеры и каталог — два независимых источника данных с разными id,
   // поэтому для корзины собираем Product-совместимый объект на лету.
-  const toCartProduct = (b: Bestseller): Product => ({
+  const toCartProduct = (b: Bestseller): Product => {
+    const card = cardBySlug.get(b.id);
+    if (card) return toProduct(card);
+    return legacyToCartProduct(b);
+  };
+  const legacyToCartProduct = (b: Bestseller): Product => ({
     id: b.id,
     name: b.name,
-    category: CATEGORIES.find((c) => c.name === b.category)?.id ?? "bestseller",
+    category: "bestseller",
     subcategory: b.category,
     price: b.price,
     oldPrice: b.oldPrice ?? null,
@@ -183,6 +206,7 @@ export function BestsellersCarousel() {
                     overflow: "hidden",
                   }}
                 >
+                  {p.image && (
                   <img
                     src={p.image}
                     alt={p.imageAlt}
@@ -192,6 +216,7 @@ export function BestsellersCarousel() {
                     decoding="async"
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  )}
                   <span
                     aria-hidden
                     className="absolute inset-0"
@@ -211,8 +236,8 @@ export function BestsellersCarousel() {
                         textTransform: "uppercase",
                         padding: "5px 10px",
                         borderRadius: 999,
-                        backgroundColor: BADGE_STYLES[badge].bg,
-                        color: BADGE_STYLES[badge].color,
+                        backgroundColor: (BADGE_STYLES[badge] ?? {bg: "var(--color-error)", color: "#f5efe0"}).bg,
+                        color: (BADGE_STYLES[badge] ?? {bg: "var(--color-error)", color: "#f5efe0"}).color,
                       }}
                     >
                       {badge}

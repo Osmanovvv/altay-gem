@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/context/CartContext";
+import { SettingsProvider } from "@/context/SettingsContext";
+import { fetchSettings, type ApiSettings } from "@/lib/api";
 import { Toaster } from "sonner";
 
 function NotFoundComponent() {
@@ -75,6 +77,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Настройки сайта (контакты, точки, подвал) — из админки (ТЗ 6.1);
+  // бэкенд недоступен -> null, компоненты показывают фолбэки.
+  loader: async (): Promise<{ settings: ApiSettings | null }> => {
+    try {
+      return { settings: await fetchSettings() };
+    } catch {
+      return { settings: null };
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -119,14 +130,17 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { settings } = Route.useLoaderData();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <SettingsProvider value={settings}>
       <CartProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster position="top-center" richColors closeButton />
       </CartProvider>
+      </SettingsProvider>
     </QueryClientProvider>
   );
 }

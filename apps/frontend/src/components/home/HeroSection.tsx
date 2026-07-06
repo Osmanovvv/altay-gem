@@ -2,10 +2,23 @@ import { motion } from "framer-motion";
 import { ArrowRight, ShoppingBag, Sparkles } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { HOME_ASSETS } from "@/data/homeAssets";
-import { PRODUCTS } from "@/data/products";
+import type { Product } from "@/data/products";
 
-export function HeroSection() {
-  const featuredProduct = PRODUCTS.find((product) => product.id === "p01");
+export interface HeroTrust {
+  yandexRating?: number;
+  gisRating?: number;
+  note?: string;
+}
+
+interface HeroSectionProps {
+  /** Товар-хит первого экрана (из админки, /home.hero). */
+  product: Product | null;
+  photoUrl?: string | null;
+  trust: HeroTrust | null;
+}
+
+export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
+  const featuredProduct = product;
 
   const titleLines = ["Настоящие продукты", "Алтая"];
 
@@ -159,12 +172,12 @@ export function HeroSection() {
           >
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden style={{ color: "var(--color-accent-light)" }}>★</span>
-              4.9 Яндекс.Карты · 4.8 2ГИС
+              {trust?.yandexRating ?? 4.9} Яндекс.Карты · {trust?.gisRating ?? 4.8} 2ГИС
             </span>
             <span aria-hidden style={{ opacity: 0.4 }}>|</span>
             <span>Собственная пасека</span>
             <span aria-hidden style={{ opacity: 0.4 }}>|</span>
-            <span>Два магазина в Новосибирске с 2018 года</span>
+            <span>{trust?.note ?? "Два магазина в Новосибирске"}</span>
           </motion.div>
         </div>
 
@@ -194,8 +207,8 @@ export function HeroSection() {
                 }}
               >
                 <img
-                  src={HOME_ASSETS.honeyJars.src}
-                  alt={HOME_ASSETS.honeyJars.alt}
+                  src={photoUrl ?? HOME_ASSETS.honeyJars.src}
+                  alt={featuredProduct.name}
                   width={720}
                   height={480}
                   loading="eager"
@@ -259,7 +272,7 @@ export function HeroSection() {
                     lineHeight: 1.45,
                   }}
                 >
-                  {featuredProduct.shortDescription}. Банка {featuredProduct.unit}.
+                  {featuredProduct.shortDescription}
                 </p>
                 <div className="mt-5 flex items-center justify-between gap-4">
                   <span

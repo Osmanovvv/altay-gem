@@ -6,7 +6,8 @@ import { Quote, Star } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
-import { REVIEWS, type Review } from "@/data/reviews";
+import type { Review } from "@/data/reviews";
+import { fetchReviews, toReviews } from "@/lib/api";
 
 export const Route = createFileRoute("/reviews")({
   head: () => ({
@@ -24,6 +25,10 @@ export const Route = createFileRoute("/reviews")({
       },
     ],
   }),
+  loader: async () => {
+    const api = await fetchReviews();
+    return { reviews: toReviews(api) as unknown as Review[], average: api.average };
+  },
   component: ReviewsPage,
 });
 
@@ -31,6 +36,7 @@ type Filter = "Все" | "Яндекс" | "2ГИС";
 const FILTERS: Filter[] = ["Все", "Яндекс", "2ГИС"];
 
 function ReviewsPage() {
+  const { reviews: REVIEWS } = Route.useLoaderData();
   const [filter, setFilter] = useState<Filter>("Все");
 
   const filtered = useMemo<Review[]>(() => {

@@ -9,6 +9,14 @@ async function bootstrap() {
 
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api/v1'); // единый префикс API (ТЗ р.9)
+  // CORS: витрина (dev 8080) и будущие домены — из env (ТЗ р.14)
+  const corsOrigins = (
+    process.env.CORS_ORIGINS ?? 'http://localhost:8080,http://localhost:8088'
+  )
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  app.enableCors({ origin: corsOrigins });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );

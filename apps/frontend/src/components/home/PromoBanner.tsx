@@ -1,32 +1,63 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { PROMOS } from "@/data/promos";
+import type { ApiBanner } from "@/lib/api";
 
 const AUTOPLAY_MS = 5000;
-const MotionLink = motion.create(Link);
+const MotionLink = motion.create(Link) as unknown as React.ComponentType<Record<string, unknown>>;
 
-export function PromoBanner() {
+const BANNER_BG = [
+  "linear-gradient(120deg, #8a5a1a 0%, #c8963e 100%)",
+  "linear-gradient(120deg, #1f4a30 0%, #3b6e4a 100%)",
+  "linear-gradient(120deg, #1a3028 0%, #2d5a3f 100%)",
+];
+
+interface PromoBannerProps {
+  /** Баннеры промо-карусели из админки (ТЗ 6.2 п.7). */
+  banners: ApiBanner[];
+}
+
+export function PromoBanner({ banners }: PromoBannerProps) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const count = banners.length;
 
   const next = useCallback(
-    () => setIndex((i) => (i + 1) % PROMOS.length),
-    [],
+    () => setIndex((i) => (i + 1) % Math.max(count, 1)),
+    [count],
   );
   const prev = useCallback(
-    () => setIndex((i) => (i - 1 + PROMOS.length) % PROMOS.length),
-    [],
+    () => setIndex((i) => (i - 1 + count) % Math.max(count, 1)),
+    [count],
   );
 
   useEffect(() => {
-    if (paused) return;
+    if (paused || count < 2) return;
     const id = window.setInterval(next, AUTOPLAY_MS);
     return () => window.clearInterval(id);
-  }, [paused, next]);
+  }, [paused, next, count]);
 
-  const promo = PROMOS[index];
+  if (count === 0) return null;
+  const b = banners[Math.min(index, count - 1)];
+  const promo = {
+    id: `${b.title}-${index}`,
+    title: b.title,
+    badge: b.badge ?? undefined,
+    description: b.description ?? "",
+    ctaText: b.buttonText ?? "Подробнее",
+    bgColor: BANNER_BG[index % BANNER_BG.length],
+    image: b.image ?? "",
+    imageAlt: b.title,
+    accentColor: "#faf7f2",
+  };
+  const linkProps =
+    b.link?.type === "promo"
+      ? { to: "/promo/$slug" as const, params: { slug: b.link.slug } }
+      : {
+          to: "/catalog" as const,
+          search: { category: b.link?.slug },
+        };
 
   return (
     <section
@@ -52,8 +83,7 @@ export function PromoBanner() {
           <AnimatePresence mode="wait" initial={false}>
             <MotionLink
               key={promo.id}
-              to="/promo/$slug"
-              params={{ slug: promo.id }}
+              {...linkProps}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -66,6 +96,7 @@ export function PromoBanner() {
                 transition: "var(--transition-smooth)",
               }}
             >
+              {promo.image && (
               <img
                 src={promo.image}
                 alt={promo.imageAlt}
@@ -75,6 +106,7 @@ export function PromoBanner() {
                 decoding="async"
                 className="absolute inset-0 h-full w-full object-cover"
               />
+              )}
               <span
                 aria-hidden
                 className="pointer-events-none absolute inset-0"
@@ -197,9 +229,9 @@ export function PromoBanner() {
 
         {/* Indicators */}
         <div className="mt-5 flex items-center justify-center gap-2">
-          {PROMOS.map((p, i) => (
+          {banners.map((p, i) => (
             <button
-              key={p.id}
+              key={p.title + i}
               type="button"
               onClick={() => setIndex(i)}
               aria-label={`Перейти к акции ${i + 1}`}

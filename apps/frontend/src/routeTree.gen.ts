@@ -21,6 +21,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PromoSlugRouteImport } from './routes/promo.$slug'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
+import { Route as OrderIdRouteImport } from './routes/order.$id'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -82,6 +83,11 @@ const ProductSlugRoute = ProductSlugRouteImport.update({
   path: '/product/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrderIdRoute = OrderIdRouteImport.update({
+  id: '/order/$id',
+  path: '/order/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/promo': typeof PromoRouteWithChildren
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
+  '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/promo/$slug': typeof PromoSlugRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/promo': typeof PromoRouteWithChildren
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
+  '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/promo/$slug': typeof PromoSlugRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/promo': typeof PromoRouteWithChildren
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
+  '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/promo/$slug': typeof PromoSlugRoute
 }
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/promo'
     | '/reviews'
     | '/search'
+    | '/order/$id'
     | '/product/$slug'
     | '/promo/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/promo'
     | '/reviews'
     | '/search'
+    | '/order/$id'
     | '/product/$slug'
     | '/promo/$slug'
   id:
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/promo'
     | '/reviews'
     | '/search'
+    | '/order/$id'
     | '/product/$slug'
     | '/promo/$slug'
   fileRoutesById: FileRoutesById
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   PromoRoute: typeof PromoRouteWithChildren
   ReviewsRoute: typeof ReviewsRoute
   SearchRoute: typeof SearchRoute
+  OrderIdRoute: typeof OrderIdRoute
   ProductSlugRoute: typeof ProductSlugRoute
 }
 
@@ -271,6 +284,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/order/$id': {
+      id: '/order/$id'
+      path: '/order/$id'
+      fullPath: '/order/$id'
+      preLoaderRoute: typeof OrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -295,6 +315,7 @@ const rootRouteChildren: RootRouteChildren = {
   PromoRoute: PromoRouteWithChildren,
   ReviewsRoute: ReviewsRoute,
   SearchRoute: SearchRoute,
+  OrderIdRoute: OrderIdRoute,
   ProductSlugRoute: ProductSlugRoute,
 }
 export const routeTree = rootRouteImport

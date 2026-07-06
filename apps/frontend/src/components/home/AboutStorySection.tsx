@@ -15,7 +15,11 @@ const STORES = [
   },
 ];
 
-export function AboutStorySection() {
+interface AboutStorySectionProps {
+  section?: { title?: string; text?: string } | null;
+}
+
+export function AboutStorySection({ section }: AboutStorySectionProps) {
   return (
     <section
       id="about"
@@ -112,7 +116,7 @@ export function AboutStorySection() {
               lineHeight: 1.05,
             }}
           >
-            Алтайские продукты, которые можно попробовать лично
+            {section?.title ?? "Алтайские продукты, которые можно попробовать лично"}
           </h2>
           <p
             className="mt-5"
@@ -123,11 +127,8 @@ export function AboutStorySection() {
               color: "var(--color-text)",
             }}
           >
-            С 2018 года мы собираем линейку натуральных продуктов из Алтая:
-            собственный мёд, пергу, прополис и другие продукты пчеловодства,
-            чаи, сыры, мясные деликатесы, бальзамы и косметику. В основе
-            ассортимента - продукция собственной пасеки и проверенных партнёров,
-            с которыми работаем напрямую.
+            {section?.text ??
+              "С 2018 года мы собираем линейку натуральных продуктов из Алтая: мёд, чаи, сыры, деликатесы, бальзамы и косметику от проверенных партнёров."}
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">

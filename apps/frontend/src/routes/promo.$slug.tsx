@@ -7,15 +7,14 @@ import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
-import { PROMOS, type Promo } from "@/data/promos";
-import { PRODUCTS } from "@/data/products";
-import { CATEGORIES } from "@/data/categories";
+
+import { ApiError, fetchPromo, toPromo, toProduct, type FrontPromo } from "@/lib/api";
 import { ProductCard } from "@/components/catalog/ProductCard";
 import { useCart } from "@/context/CartContext";
 
 export const Route = createFileRoute("/promo/$slug")({
-  head: ({ params }) => {
-    const promo = PROMOS.find((p) => p.id === params.slug);
+  head: ({ loaderData }) => {
+    const promo = (loaderData as { promo?: FrontPromo } | undefined)?.promo;
     const title = promo
       ? `${promo.title} - Жемчужина Алтая`
       : "Акция - Жемчужина Алтая";
@@ -29,10 +28,18 @@ export const Route = createFileRoute("/promo/$slug")({
       ],
     };
   },
-  loader: ({ params }) => {
-    const promo = PROMOS.find((p) => p.id === params.slug);
-    if (!promo) throw notFound();
-    return { promo };
+  loader: async ({ params }) => {
+    try {
+      const detail = await fetchPromo(params.slug);
+      return {
+        promo: toPromo(detail),
+        products: detail.products.map(toProduct),
+        categoryName: null as string | null,
+      };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) throw notFound();
+      throw err;
+    }
   },
   notFoundComponent: () => (
     <>
@@ -81,18 +88,16 @@ export const Route = createFileRoute("/promo/$slug")({
 });
 
 function PromoDetailPage() {
-  const data = Route.useLoaderData() as { promo: Promo };
+  const data = Route.useLoaderData() as {
+    promo: FrontPromo;
+    products: ReturnType<typeof toProduct>[];
+  };
   const promo = data.promo;
+  const products = data.products;
   const { addToCart } = useCart();
   const trackRef = useRef<HTMLDivElement | null>(null);
 
-  const products = (promo.productIds ?? [])
-    .map((id: string) => PRODUCTS.find((p) => p.id === id))
-    .filter((p): p is NonNullable<typeof p> => Boolean(p));
-
-  const category = promo.categoryFilter
-    ? CATEGORIES.find((c) => c.id === promo.categoryFilter)
-    : undefined;
+  const category = promo.categoryFilter ? { name: "каталог раздела" } : undefined;
 
   const scrollBy = (dir: 1 | -1) => {
     const el = trackRef.current;

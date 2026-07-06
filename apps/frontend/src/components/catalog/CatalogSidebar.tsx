@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, RotateCcw } from "lucide-react";
-import { CATEGORIES } from "@/data/categories";
-import { PRODUCT_COUNTS } from "@/data/products";
+import type { FrontCategory } from "@/lib/api";
 
 export interface CatalogFilterState {
   category: string | null; // category id
@@ -23,9 +22,11 @@ export const DEFAULT_FILTERS: CatalogFilterState = {
 interface CatalogSidebarProps {
   filters: CatalogFilterState;
   onChange: (next: CatalogFilterState) => void;
+  /** Категории с количеством товаров — приходят из API (/categories). */
+  categories: FrontCategory[];
 }
 
-export function CatalogSidebar({ filters, onChange }: CatalogSidebarProps) {
+export function CatalogSidebar({ filters, onChange, categories }: CatalogSidebarProps) {
   const [openCat, setOpenCat] = useState<string | null>(filters.category);
 
   const toggleCat = (id: string) => {
@@ -65,10 +66,10 @@ export function CatalogSidebar({ filters, onChange }: CatalogSidebarProps) {
       </h3>
 
       <ul className="flex flex-col">
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const isOpen = openCat === cat.id;
           const isActive = filters.category === cat.id && !filters.subcategory;
-          const count = PRODUCT_COUNTS[cat.id] ?? 0;
+          const count = cat.count;
           return (
             <li key={cat.id}>
               <button

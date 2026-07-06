@@ -13,14 +13,18 @@ import { Footer } from "@/components/layout/Footer";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductInfo } from "@/components/product/ProductInfo";
 import { RelatedProducts } from "@/components/product/RelatedProducts";
-import { PRODUCTS, type Product } from "@/data/products";
-import { CATEGORIES } from "@/data/categories";
+import type { Product } from "@/data/products";
+import { ApiError, fetchProduct, toProduct } from "@/lib/api";
 
 export const Route = createFileRoute("/product/$slug")({
-  loader: ({ params }) => {
-    const product = PRODUCTS.find((p) => p.id === params.slug);
-    if (!product) throw notFound();
-    return { product };
+  loader: async ({ params }) => {
+    try {
+      const detail = await fetchProduct(params.slug);
+      return { detail, product: toProduct(detail) };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) throw notFound();
+      throw err;
+    }
   },
   head: ({ loaderData }) => {
     const p = loaderData?.product;
@@ -93,11 +97,26 @@ function ProductNotFound() {
 }
 
 function ProductPage() {
-  const { product } = Route.useLoaderData();
+  const { detail, product } = Route.useLoaderData();
   const navigate = useNavigate();
   const [toast, setToast] = useState<string | null>(null);
 
-  const category = CATEGORIES.find((c) => c.id === product.category);
+  const category = detail.categoryName
+    ? { name: detail.categoryName }
+    : null;
+
+  const CHAR_LABELS: Record<string, string> = {
+    weightVolume: "Вес/Объём",
+    composition: "Состав",
+    manufacturer: "Производитель",
+    shelfLife: "Срок годности",
+    storage: "Условия хранения",
+  };
+  const specs: Record<string, string> = {};
+  for (const [k, v] of Object.entries(detail.characteristics ?? {})) {
+    if (v && CHAR_LABELS[k]) specs[CHAR_LABELS[k]] = v;
+  }
+  const relatedProducts = detail.related.map(toProduct);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -160,14 +179,19 @@ function ProductPage() {
               name={product.name}
               badges={product.badges}
             />
-            <ProductInfo product={product} onAdd={onAdd} />
+            <ProductInfo
+              product={product}
+              detail={{
+                specs,
+                stock: detail.availableQty,
+                longDesc: detail.fullDescription ?? product.shortDescription,
+                categoryName: detail.categoryName,
+              }}
+              onAdd={onAdd}
+            />
           </div>
 
-          <RelatedProducts
-            category={product.category}
-            excludeId={product.id}
-            onAdd={onRelatedAdd}
-          />
+          <RelatedProducts products={relatedProducts} onAdd={onRelatedAdd} />
         </div>
       </main>
 

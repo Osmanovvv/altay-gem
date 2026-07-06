@@ -10,18 +10,18 @@ import { Package, Search, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ProductGrid } from "@/components/catalog/ProductGrid";
-import { PRODUCTS, type Product } from "@/data/products";
-import { CATEGORIES } from "@/data/categories";
+import type { Product } from "@/data/products";
+import { fetchCatalog, fetchCategories, toCategory, toProduct } from "@/lib/api";
 
 interface SearchParams {
   q: string;
-  cat: string | null;
+  cat: string | undefined;
 }
 
 export const Route = createFileRoute("/search")({
-  validateSearch: (raw: Record<string, unknown>): SearchParams => ({
+  validateSearch: (raw: Record<string, unknown>): Partial<SearchParams> => ({
     q: typeof raw.q === "string" ? raw.q : "",
-    cat: typeof raw.cat === "string" && raw.cat ? raw.cat : null,
+    cat: typeof raw.cat === "string" && raw.cat && raw.cat !== "null" ? raw.cat : undefined,
   }),
   head: () => ({
     meta: [
@@ -31,6 +31,9 @@ export const Route = createFileRoute("/search")({
         content: "Поиск по каталогу натуральных продуктов с Алтая.",
       },
     ],
+  }),
+  loader: async () => ({
+    categories: (await fetchCategories()).map(toCategory),
   }),
   component: SearchPage,
 });
@@ -44,7 +47,7 @@ function declension(n: number, forms: [string, string, string]) {
 }
 
 function SearchPage() {
-  const { q, cat } = Route.useSearch();
+  const { q = "", cat } = Route.useSearch();
   const navigate = useNavigate({ from: "/search" });
 
   const [input, setInput] = useState(q);
@@ -73,29 +76,36 @@ function SearchPage() {
   useEffect(() => {
     if (debounced === q) return;
     navigate({
-      search: (prev: SearchParams) => ({ ...prev, q: debounced }),
+      search: (prev: Partial<SearchParams>) => ({ ...prev, q: debounced }),
       replace: true,
     });
   }, [debounced, q, navigate]);
 
-  const results = useMemo(() => {
-    const term = debounced.trim().toLowerCase();
-    return PRODUCTS.filter((p) => {
-      if (cat && p.category !== cat) return false;
-      if (!term) return true;
-      const categoryName =
-        CATEGORIES.find((c) => c.id === p.category)?.name.toLowerCase() ?? "";
-      return (
-        p.name.toLowerCase().includes(term) ||
-        p.subcategory.toLowerCase().includes(term) ||
-        categoryName.includes(term)
-      );
-    });
+  const { categories } = Route.useLoaderData();
+  // Поиск выполняется на бэкенде (ТЗ 6.9)
+  const [results, setResults] = useState<Product[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalog({
+      q: debounced.trim() || undefined,
+      category: cat ?? undefined,
+      perPage: 48,
+    })
+      .then((res) => {
+        if (!cancelled) setResults(res.items.map(toProduct));
+      })
+      .catch(() => {
+        if (!cancelled) setResults([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [debounced, cat]);
 
   const setCat = (id: string | null) => {
+    void id;
     navigate({
-      search: (prev: SearchParams) => ({ ...prev, cat: id }),
+      search: (prev: Partial<SearchParams>) => ({ ...prev, cat: id ?? undefined }),
       replace: true,
     });
   };
@@ -103,7 +113,7 @@ function SearchPage() {
   const clearInput = () => {
     setInput("");
     setDebounced("");
-    navigate({ search: (prev: SearchParams) => ({ ...prev, q: "" }), replace: true });
+    navigate({ search: (prev: Partial<SearchParams>) => ({ ...prev, q: "" }), replace: true });
     inputRef.current?.focus();
   };
 
@@ -196,7 +206,7 @@ function SearchPage() {
                 onClick={() => setCat(null)}
                 index={0}
               />
-              {CATEGORIES.map((c, i) => (
+              {categories.map((c, i) => (
                 <Chip
                   key={c.id}
                   label={c.name}
@@ -241,7 +251,7 @@ function SearchPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, ease: "easeOut" }}
               >
-                <ProductGrid products={results} view="grid-4" onAdd={onAdd} />
+                <ProductGrid products={results} onAdd={onAdd} />
               </motion.div>
             )}
           </div>

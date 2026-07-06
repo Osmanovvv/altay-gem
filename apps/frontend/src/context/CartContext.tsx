@@ -2,12 +2,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { Product } from "@/data/products";
-import { PROMOS } from "@/data/promos";
+import { validatePromo } from "@/lib/api";
 
 export interface CartItem {
   product: Product;
@@ -29,18 +31,103 @@ interface CartContextValue {
   hasPerishable: () => boolean;
   promoCode: string | null;
   promoError: string | null;
+  promoPending: boolean;
   applyPromoCode: (code: string) => void;
   clearPromoCode: () => void;
   getPromoDiscount: () => number;
+  /** Корзина восстановлена из localStorage (до этого не судить о пустоте). */
+  ready: boolean;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+const STORAGE_KEY = "altai-cart-v1";
+
+interface StoredCart {
+  items: CartItem[];
+  promoCode: string | null;
+}
+
+/** Корзина хранится на клиенте (localStorage, ТЗ 6.6);
+ *  промокод валидируется ТОЛЬКО сервером (POST /promo/validate, ТЗ 8.3). */
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [promoDiscountRub, setPromoDiscountRub] = useState(0);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoPending, setPromoPending] = useState(false);
+  const hydrated = useRef(false);
+  const [ready, setReady] = useState(false);
+
+  // --- localStorage: восстановление и сохранение (SSR-безопасно) ---
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as StoredCart;
+        if (Array.isArray(saved.items)) setItems(saved.items);
+        if (saved.promoCode) setPromoCode(saved.promoCode);
+      }
+    } catch {
+      /* повреждённое хранилище — начинаем с пустой корзины */
+    }
+    hydrated.current = true;
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ items, promoCode } satisfies StoredCart),
+      );
+    } catch {
+      /* квота/приватный режим — не критично */
+    }
+  }, [items, promoCode]);
+
+  // --- серверная валидация промокода при изменении корзины/кода ---
+  useEffect(() => {
+    if (!promoCode) {
+      setPromoDiscountRub(0);
+      return;
+    }
+    if (items.length === 0) {
+      setPromoDiscountRub(0);
+      return;
+    }
+    let cancelled = false;
+    setPromoPending(true);
+    validatePromo(
+      promoCode,
+      items.map((i) => ({ id: i.product.id, quantity: i.quantity })),
+    )
+      .then((res) => {
+        if (cancelled) return;
+        if (res.valid) {
+          setPromoDiscountRub(res.discountRub ?? 0);
+          setPromoError(null);
+        } else {
+          setPromoDiscountRub(0);
+          setPromoError(res.message);
+          setPromoCode(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPromoDiscountRub(0);
+          setPromoError("Не удалось проверить промокод — попробуйте ещё раз");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPromoPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [promoCode, items]);
 
   const addToCart = useCallback((product: Product, qty: number = 1) => {
     setItems((cur) => {
@@ -72,45 +159,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => {
+    setItems([]);
+    setPromoCode(null);
+    setPromoDiscountRub(0);
+    setPromoError(null);
+  }, []);
 
   const applyPromoCode = useCallback((code: string) => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
-    const promo = PROMOS.find((p) => p.promoCode?.toUpperCase() === trimmed);
-    if (!promo) {
-      setPromoError("Такой промокод не найден");
-      setPromoCode(null);
-      return;
-    }
-    setPromoCode(promo.promoCode ?? trimmed);
     setPromoError(null);
+    setPromoCode(trimmed); // валидация уйдёт на сервер эффектом выше
   }, []);
 
   const clearPromoCode = useCallback(() => {
     setPromoCode(null);
+    setPromoDiscountRub(0);
     setPromoError(null);
   }, []);
 
-  const getPromoDiscount = useCallback(() => {
-    if (!promoCode) return 0;
-    const promo = PROMOS.find(
-      (p) => p.promoCode?.toUpperCase() === promoCode.toUpperCase(),
-    );
-    if (!promo?.discountPercent) return 0;
-    const base = items
-      .filter(
-        (i) => !promo.categoryFilter || i.product.category === promo.categoryFilter,
-      )
-      .reduce((sum, i) => sum + i.product.price * i.quantity, 0);
-    return Math.round(base * (promo.discountPercent / 100));
-  }, [items, promoCode]);
+  const getPromoDiscount = useCallback(
+    () => promoDiscountRub,
+    [promoDiscountRub],
+  );
 
   const getCartTotal = useCallback(
     () =>
       items.reduce((sum, i) => sum + i.product.price * i.quantity, 0) -
-      getPromoDiscount(),
-    [items, getPromoDiscount],
+      promoDiscountRub,
+    [items, promoDiscountRub],
   );
 
   const getCartOldTotal = useCallback(
@@ -153,9 +231,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       hasPerishable,
       promoCode,
       promoError,
+      promoPending,
       applyPromoCode,
       clearPromoCode,
       getPromoDiscount,
+      ready,
     }),
     [
       items,
@@ -169,11 +249,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       getCartDiscount,
       promoCode,
       promoError,
+      promoPending,
       applyPromoCode,
       clearPromoCode,
       getPromoDiscount,
       getCartCount,
       hasPerishable,
+      ready,
     ],
   );
 

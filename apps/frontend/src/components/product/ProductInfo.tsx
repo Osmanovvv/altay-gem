@@ -2,104 +2,51 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { MapPin, Minus, Plus, ShoppingBag, Truck } from "lucide-react";
 import type { Product } from "@/data/products";
-import { CATEGORIES } from "@/data/categories";
+
+/** Данные карточки, приходящие из API (характеристики, остаток, описание). */
+export interface ProductInfoDetail {
+  specs: Record<string, string>;
+  stock: number;
+  longDesc: string;
+  categoryName: string | null;
+}
 
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
   "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
   "Новинка": { bg: "var(--color-success)", color: "#f5efe0" },
-  "-15%": { bg: "var(--color-error)", color: "#f5efe0" },
-  "-20%": { bg: "var(--color-error)", color: "#f5efe0" },
 };
+const badgeStyle = (b: string) =>
+  BADGE_STYLES[b] ??
+  (b.startsWith("-")
+    ? { bg: "var(--color-error)", color: "#f5efe0" }
+    : { bg: "var(--color-accent)", color: "var(--color-bg-dark)" });
 
-const SPECS_BY_CATEGORY: Record<string, Record<string, string>> = {
-  honey: {
-    Состав: "100% натуральный мёд, без добавок",
-    Производитель: "Пасеки Алтайская деревня",
-    "Срок годности": "24 месяца",
-    "Условия хранения": "При температуре до +20°C, в тёмном месте",
-  },
-  tea: {
-    Состав: "Натуральные травы и листья ручного сбора",
-    Производитель: "Шлегель, с. Алтайское",
-    "Срок годности": "18 месяцев",
-    "Условия хранения": "В сухом месте, в герметичной упаковке",
-  },
-  cheese: {
-    Состав: "Молоко цельное пастеризованное, соль, закваска",
-    Производитель: "Сыроварня Алтайская деревня",
-    "Срок годности": "30 суток",
-    "Условия хранения": "При температуре +2…+6°C",
-  },
-  meat: {
-    Состав: "Мясо марала/оленя, соль, специи натуральные",
-    Производитель: "Хозяйство Шлегель",
-    "Срок годности": "60 суток",
-    "Условия хранения": "При температуре +2…+6°C",
-  },
-  cosmetics: {
-    Состав: "Растительные масла Алтая, экстракты трав, без парабенов",
-    Производитель: "Алтайская деревня",
-    "Срок годности": "12 месяцев",
-    "Условия хранения": "При температуре +5…+25°C",
-  },
-  balms: {
-    Состав: "Травяной экстракт, натуральные масла холодного отжима",
-    Производитель: "Шлегель",
-    "Срок годности": "24 месяца",
-    "Условия хранения": "В тёмном прохладном месте",
-  },
-  pantohematogen: {
-    Состав: "Кровь пантов марала, натуральные компоненты",
-    Производитель: "Алтайская деревня",
-    "Срок годности": "18 месяцев",
-    "Условия хранения": "В тёмном прохладном месте",
-  },
-  gifts: {
-    Состав: "Подарочная упаковка, см. описание",
-    Производитель: "Жемчужина Алтая",
-    "Срок годности": "12 месяцев",
-    "Условия хранения": "В сухом прохладном месте",
-  },
-};
 
-const STOCK_BY_PRODUCT: Record<string, number> = {};
-const stockFor = (id: string, inStock: boolean) => {
-  if (!inStock) return 0;
-  if (STOCK_BY_PRODUCT[id]) return STOCK_BY_PRODUCT[id];
-  const code = id.charCodeAt(id.length - 1) + id.charCodeAt(id.length - 2);
-  const value = 5 + (code % 12);
-  STOCK_BY_PRODUCT[id] = value;
-  return value;
-};
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
 
 interface ProductInfoProps {
   product: Product;
+  detail: ProductInfoDetail;
   onAdd: (p: Product, qty: number) => void;
 }
 
-export function ProductInfo({ product, onAdd }: ProductInfoProps) {
-  const stock = stockFor(product.id, product.inStock);
+export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
+  const stock = product.inStock ? detail.stock : 0;
   const [qty, setQty] = useState(1);
-  const category = CATEGORIES.find((c) => c.id === product.category);
 
   const specs: Record<string, string> = {
     "Вес/Объём": product.unit,
-    ...SPECS_BY_CATEGORY[product.category],
+    ...detail.specs,
   };
 
-  const longDesc =
-    `${product.shortDescription}. ` +
-    "Произведено по традиционным алтайским рецептам с соблюдением всех технологических норм. " +
-    "Без искусственных консервантов, красителей и ароматизаторов. " +
-    "Каждая партия проходит контроль качества в собственной лаборатории хозяйства.";
+  const longDesc = detail.longDesc || product.shortDescription;
 
   return (
     <div className="flex flex-col gap-5">
       {/* Category chips */}
       <div className="flex flex-wrap items-center gap-2">
-        {category && (
+        {detail.categoryName && (
           <Link
             to="/catalog"
             className="rounded-full transition-colors hover:bg-black/5"
@@ -114,7 +61,7 @@ export function ProductInfo({ product, onAdd }: ProductInfoProps) {
               padding: "5px 11px",
             }}
           >
-            {category.name}
+            {detail.categoryName}
           </Link>
         )}
         <Link
@@ -161,8 +108,8 @@ export function ProductInfo({ product, onAdd }: ProductInfoProps) {
                 textTransform: "uppercase",
                 padding: "5px 11px",
                 borderRadius: 999,
-                backgroundColor: BADGE_STYLES[b]?.bg ?? "var(--color-accent)",
-                color: BADGE_STYLES[b]?.color ?? "var(--color-bg-dark)",
+                backgroundColor: badgeStyle(b).bg,
+                color: badgeStyle(b).color,
               }}
             >
               {b}

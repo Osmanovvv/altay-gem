@@ -16,7 +16,11 @@ interface HeaderProps {
   phone?: string;
 }
 
-export function Header({ phone = "+7 (383) 000-00-00" }: HeaderProps) {
+import { useSettings } from "@/context/SettingsContext";
+
+export function Header({ phone: phoneProp }: HeaderProps) {
+  const settings = useSettings();
+  const phone = phoneProp ?? settings?.contacts?.phone ?? "+7 (383) 000-00-00";
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const { getCartCount } = useCart();

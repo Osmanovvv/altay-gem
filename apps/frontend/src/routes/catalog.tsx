@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, SlidersHorizontal, X } from "lucide-react";
@@ -12,14 +12,36 @@ import {
 } from "@/components/catalog/CatalogSidebar";
 import { CatalogFilters, type SortKey } from "@/components/catalog/CatalogFilters";
 import { ProductGrid } from "@/components/catalog/ProductGrid";
-import { PRODUCTS, type Product } from "@/data/products";
-import { CATEGORIES } from "@/data/categories";
+import type { Product } from "@/data/products";
+
 import { useCart } from "@/context/CartContext";
+import {
+  fetchCatalog,
+  fetchCategories,
+  toCategory,
+  toProduct,
+  type CatalogQuery,
+} from "@/lib/api";
+
+const SORT_MAP: Record<SortKey, CatalogQuery["sort"]> = {
+  "price-asc": "price_asc",
+  "price-desc": "price_desc",
+  "name-asc": "name",
+};
 
 export const Route = createFileRoute("/catalog")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { category?: string } => ({
     category: typeof search.category === "string" ? search.category : undefined,
   }),
+  // SSR: первая страница каталога и категории приходят с сервера
+  loaderDeps: ({ search }) => ({ category: search.category }),
+  loader: async ({ deps }) => {
+    const [catalog, categories] = await Promise.all([
+      fetchCatalog({ category: deps.category, sort: "price_asc" }),
+      fetchCategories(),
+    ]);
+    return { catalog, categories: categories.map(toCategory) };
+  },
   head: () => ({
     meta: [
       { title: "Каталог продукции - Жемчужина Алтая" },
@@ -39,10 +61,11 @@ export const Route = createFileRoute("/catalog")({
   component: CatalogPage,
 });
 
-const PAGE_SIZE = 12;
-
 function CatalogPage() {
   const search = Route.useSearch();
+  const initial = Route.useLoaderData();
+  const categories = initial.categories;
+
   const [filters, setFilters] = useState<CatalogFilterState>(() => ({
     ...DEFAULT_FILTERS,
     category: search.category ?? null,
@@ -52,6 +75,10 @@ function CatalogPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // данные с сервера: фильтрация/сортировка/пагинация — на бэкенде (ТЗ 6.3)
+  const [data, setData] = useState(initial.catalog);
+  const firstRender = useRef(true);
+
   // Переход с баннера акции/плитки категории на уже открытый каталог
   // (без полного размонтирования роута) — синкаем фильтр с URL.
   useEffect(() => {
@@ -59,34 +86,39 @@ function CatalogPage() {
     setPage(1);
   }, [search.category]);
 
-  const filtered = useMemo(() => {
-    const min = filters.priceMin ? Number(filters.priceMin) : null;
-    const max = filters.priceMax ? Number(filters.priceMax) : null;
-    return PRODUCTS.filter((p) => {
-      if (filters.category && p.category !== filters.category) return false;
-      if (filters.subcategory && p.subcategory !== filters.subcategory)
-        return false;
-      if (min !== null && p.price < min) return false;
-      if (max !== null && p.price > max) return false;
-      if (filters.inStockOnly && !p.inStock) return false;
-      return true;
-    });
-  }, [filters]);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return; // первая отрисовка — данные уже пришли из loader (SSR)
+    }
+    const controller = new AbortController();
+    const t = window.setTimeout(() => {
+      fetchCatalog({
+        category: filters.category ?? undefined,
+        subcategory: filters.subcategory ?? undefined,
+        priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
+        priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
+        inStock: filters.inStockOnly || undefined,
+        sort: SORT_MAP[sort],
+        page,
+      })
+        .then((res) => {
+          if (!controller.signal.aborted) setData(res);
+        })
+        .catch(() => {
+          /* сеть моргнула — оставляем предыдущие данные */
+        });
+    }, 250); // дебаунс для полей цены
+    return () => {
+      controller.abort();
+      window.clearTimeout(t);
+    };
+  }, [filters, sort, page]);
 
-  const sorted = useMemo(() => {
-    const arr = [...filtered];
-    if (sort === "price-asc") arr.sort((a, b) => a.price - b.price);
-    if (sort === "price-desc") arr.sort((a, b) => b.price - a.price);
-    if (sort === "name-asc") arr.sort((a, b) => a.name.localeCompare(b.name));
-    return arr;
-  }, [filtered, sort]);
-
-  const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageItems = useMemo(() => data.items.map(toProduct), [data]);
+  const pages = data.pagination.pageCount;
   const safePage = Math.min(page, pages);
-  const pageItems = sorted.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  );
+  const totalCount = data.pagination.total;
 
   const updateFilters = (next: CatalogFilterState) => {
     setFilters(next);
@@ -100,7 +132,7 @@ function CatalogPage() {
     window.setTimeout(() => setToast(null), 2200);
   };
 
-  const activeCategory = CATEGORIES.find((c) => c.id === filters.category);
+  const activeCategory = categories.find((c) => c.id === filters.category);
 
   return (
     <div
@@ -199,14 +231,14 @@ function CatalogPage() {
             {/* Sidebar desktop */}
             <div className="hidden lg:block">
               <div className="sticky top-24">
-                <CatalogSidebar filters={filters} onChange={updateFilters} />
+                <CatalogSidebar filters={filters} onChange={updateFilters} categories={categories} />
               </div>
             </div>
 
             {/* Main */}
             <div className="flex min-w-0 flex-col gap-5">
               <CatalogFilters
-                count={sorted.length}
+                count={totalCount}
                 sort={sort}
                 onSortChange={setSort}
               />
@@ -302,7 +334,7 @@ function CatalogPage() {
                 </button>
               </div>
               <div className="px-4 pb-8">
-                <CatalogSidebar filters={filters} onChange={updateFilters} />
+                <CatalogSidebar filters={filters} onChange={updateFilters} categories={categories} />
               </div>
             </motion.aside>
           </>

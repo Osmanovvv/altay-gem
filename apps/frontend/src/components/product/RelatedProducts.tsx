@@ -2,19 +2,16 @@ import { useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { PRODUCTS, type Product } from "@/data/products";
+import type { Product } from "@/data/products";
 import { ProductCard } from "@/components/catalog/ProductCard";
 
 interface RelatedProductsProps {
-  category: string;
-  excludeId: string;
-  onAdd?: (p: Product) => void;
+  products: Product[];
+  onAdd: (p: Product) => void;
 }
 
-export function RelatedProducts({ category, excludeId, onAdd }: RelatedProductsProps) {
-  const items = PRODUCTS.filter(
-    (p) => p.category === category && p.id !== excludeId,
-  ).slice(0, 6);
+export function RelatedProducts({ products, onAdd }: RelatedProductsProps) {
+  const items = products.slice(0, 6);
 
   const trackRef = useRef<HTMLDivElement | null>(null);
 

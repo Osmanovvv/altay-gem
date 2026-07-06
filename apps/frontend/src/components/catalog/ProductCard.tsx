@@ -6,9 +6,14 @@ import { useCart } from "@/context/CartContext";
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
   "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
   "Новинка": { bg: "var(--color-success)", color: "#f5efe0" },
-  "-15%": { bg: "var(--color-error)", color: "#f5efe0" },
-  "-20%": { bg: "var(--color-error)", color: "#f5efe0" },
 };
+
+/** Скидочные бейджи приходят с сервера любым процентом («-13%»). */
+const badgeStyle = (b: string) =>
+  BADGE_STYLES[b] ??
+  (b.startsWith("-")
+    ? { bg: "var(--color-error)", color: "#f5efe0" }
+    : { bg: "var(--color-accent)", color: "var(--color-bg-dark)" });
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
 
@@ -65,8 +70,8 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
                 textTransform: "uppercase",
                 padding: "5px 10px",
                 borderRadius: 999,
-                backgroundColor: BADGE_STYLES[b]?.bg ?? "var(--color-accent)",
-                color: BADGE_STYLES[b]?.color ?? "var(--color-bg-dark)",
+                backgroundColor: badgeStyle(b).bg,
+                color: badgeStyle(b).color,
                 width: "fit-content",
               }}
             >

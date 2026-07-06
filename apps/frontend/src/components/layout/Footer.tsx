@@ -17,7 +17,18 @@ const CUSTOMERS = [
   { label: "Контакты", to: "/about" },
 ] as const;
 
+import { useSettings } from "@/context/SettingsContext";
+
 export function Footer() {
+  const settings = useSettings();
+  const points = settings?.storePoints?.length
+    ? settings.storePoints
+    : [
+        { name: "Левый берег", address: "Новосибирск, ул. Ватутина, 89", hours: "пн-вс: 10:00-21:00" },
+        { name: "Правый берег", address: "Новосибирск, ул. Кирова, 27", hours: "пн-вс: 10:00-21:00" },
+      ];
+  const phone = settings?.contacts?.phone ?? "+7 (383) 000-00-00";
+  const email = settings?.contacts?.email ?? "hello@altai-pearl.ru";
   const muted = "var(--color-text-muted)";
   const text = "#c8bfa8";
   const accent = "var(--color-accent)";
@@ -122,40 +133,34 @@ export function Footer() {
           <div>
             <h4 style={headingStyle}>Контакты</h4>
             <ul className="flex flex-col gap-3">
-              <li className="flex items-start gap-2" style={{ fontSize: 14, lineHeight: 1.5 }}>
-                <MapPin size={16} style={{ color: accent, marginTop: 2, flexShrink: 0 }} />
-                <span>
-                  Левый берег: ул. Ватутина, 89
-                  <br />
-                  <span style={{ color: muted }}>пн-вс: 10:00-21:00</span>
-                </span>
-              </li>
-              <li className="flex items-start gap-2" style={{ fontSize: 14, lineHeight: 1.5 }}>
-                <MapPin size={16} style={{ color: accent, marginTop: 2, flexShrink: 0 }} />
-                <span>
-                  Правый берег: ул. Кирова, 27
-                  <br />
-                  <span style={{ color: muted }}>пн-вс: 10:00-21:00</span>
-                </span>
-              </li>
+              {points.map((p) => (
+                <li key={p.address} className="flex items-start gap-2" style={{ fontSize: 14, lineHeight: 1.5 }}>
+                  <MapPin size={16} style={{ color: accent, marginTop: 2, flexShrink: 0 }} />
+                  <span>
+                    {p.name}: {p.address}
+                    <br />
+                    <span style={{ color: muted }}>{p.hours ?? ""}</span>
+                  </span>
+                </li>
+              ))}
               <li>
                 <a
-                  href="tel:+73830000000"
+                  href={"tel:" + phone.replace(/[^+\d]/g, "")}
                   className="flex items-center gap-2 transition-colors hover:text-white"
                   style={linkStyle}
                 >
                   <Phone size={16} style={{ color: accent }} />
-                  +7 (383) 000-00-00
+                  {phone}
                 </a>
               </li>
               <li>
                 <a
-                  href="mailto:hello@altai-pearl.ru"
+                  href={"mailto:" + email}
                   className="flex items-center gap-2 transition-colors hover:text-white"
                   style={linkStyle}
                 >
                   <Mail size={16} style={{ color: accent }} />
-                  hello@altai-pearl.ru
+                  {email}
                 </a>
               </li>
             </ul>

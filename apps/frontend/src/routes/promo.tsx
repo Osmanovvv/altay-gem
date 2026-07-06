@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
-import { PROMOS } from "@/data/promos";
+import { fetchPromos, promoIcon, toPromo } from "@/lib/api";
 
 export const Route = createFileRoute("/promo")({
   head: () => ({
@@ -23,10 +23,14 @@ export const Route = createFileRoute("/promo")({
       },
     ],
   }),
+  loader: async () => ({
+    promos: (await fetchPromos()).map((p, i) => toPromo(p, i)),
+  }),
   component: PromoIndexPage,
 });
 
 function PromoIndexPage() {
+  const { promos } = Route.useLoaderData();
   return (
     <>
       <Header />
@@ -41,8 +45,8 @@ function PromoIndexPage() {
 
         <section className="mx-auto w-full max-w-6xl px-4 py-16 md:px-8 md:py-24">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {PROMOS.map((promo, i) => {
-              const Icon = promo.icon;
+            {promos.map((promo, i) => {
+              const Icon = promoIcon(i);
               return (
                 <motion.div
                   key={promo.id}

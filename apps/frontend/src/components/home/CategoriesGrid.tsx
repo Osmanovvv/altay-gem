@@ -1,8 +1,12 @@
 import { motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
-import { CATEGORIES } from "@/data/categories";
+import { iconFor, type FrontCategory } from "@/lib/api";
 
-export function CategoriesGrid() {
+interface CategoriesGridProps {
+  categories: FrontCategory[];
+}
+
+export function CategoriesGrid({ categories }: CategoriesGridProps) {
   return (
     <section
       id="catalog"
@@ -49,8 +53,8 @@ export function CategoriesGrid() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-5 lg:grid-cols-4 lg:gap-6">
-          {CATEGORIES.map((cat, idx) => {
-            const Icon = cat.icon;
+          {categories.map((cat, idx) => {
+            const Icon = iconFor(cat.slug);
             return (
               <motion.div
                 key={cat.id}

@@ -18,6 +18,12 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart } from "@/context/CartContext";
+import {
+  ApiError,
+  createOrder,
+  quoteDelivery,
+  type ApiDeliveryQuote,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -38,12 +44,12 @@ type Step = 0 | 1 | 2;
 const STEPS = ["Контакты", "Доставка", "Подтверждение"] as const;
 
 type DeliveryMethod =
-  | "pickup_left"
-  | "pickup_right"
-  | "nsk"
+  | "pickup_leningradskaya"
+  | "pickup_titova"
+  | "courier_nsk"
   | "russia";
 
-type PaymentMethod = "card_online" | "cash_on_delivery" | "card_on_delivery";
+type PaymentMethod = "online" | "cash_on_pickup" | "card_on_pickup";
 
 interface FormState {
   name: string;
@@ -63,9 +69,9 @@ interface FormErrors {
 }
 
 // Адреса синхронизированы с футером и секцией «Как нас найти»
-const PICKUP_ADDRESSES: Record<"pickup_left" | "pickup_right", string> = {
-  pickup_left: "г. Новосибирск, ул. Ватутина, 89 (Левый берег)",
-  pickup_right: "г. Новосибирск, ул. Кирова, 27 (Правый берег)",
+const PICKUP_ADDRESSES: Record<"pickup_leningradskaya" | "pickup_titova", string> = {
+  pickup_leningradskaya: "г. Новосибирск, ул. Ленинградская 75/2",
+  pickup_titova: "г. Новосибирск, ул. Титова 32",
 };
 
 function maskPhone(value: string): string {
@@ -88,10 +94,19 @@ function normalizePhone(value: string): string {
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getCartTotal, getCartCount, hasPerishable, clearCart } = useCart();
+  const { items, getCartTotal, getCartCount, hasPerishable, clearCart, promoCode, ready } =
+    useCart();
   const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // Стоимость доставки считает сервер и показывает в сводке ДО оплаты (ТЗ 6.7)
+  const [quote, setQuote] = useState<ApiDeliveryQuote | null>(null);
+  // Идемпотентность повторных кликов «Подтвердить» (двойной сабмит = тот же заказ)
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : String(Math.random()).slice(2),
+  );
 
   const [form, setForm] = useState<FormState>({
     name: "",
@@ -99,36 +114,65 @@ function CheckoutPage() {
     email: "",
     delivery: "",
     address: "",
-    payment: "card_online",
+    payment: "online",
   });
   const [errors, setErrors] = useState<FormErrors>({});
 
   const perishable = hasPerishable();
   const total = getCartTotal();
   const count = getCartCount();
-  const isPickup = form.delivery === "pickup_left" || form.delivery === "pickup_right";
+  const isPickup = form.delivery === "pickup_leningradskaya" || form.delivery === "pickup_titova";
 
   // Наличные/карта "при получении" физически возможны только на самовывозе —
   // для курьера/СДЭК остаётся только онлайн-оплата. Если сменили способ
   // доставки на недоступный для выбранной оплаты — сбрасываем на онлайн.
   useEffect(() => {
     if (!isPickup) {
-      setForm((f) => (f.payment === "card_online" ? f : { ...f, payment: "card_online" }));
+      setForm((f) => (f.payment === "online" ? f : { ...f, payment: "online" }));
     }
   }, [isPickup]);
 
   useEffect(() => {
-    if (items.length === 0 && !done) {
+    // ждём восстановления корзины из localStorage, иначе ложный редирект
+    if (ready && items.length === 0 && !done) {
       void navigate({ to: "/cart" });
     }
-  }, [items.length, done, navigate]);
+  }, [ready, items.length, done, navigate]);
+
+  // Серверный предрасчёт доставки при выборе способа/изменении корзины
+  useEffect(() => {
+    if (!form.delivery || items.length === 0) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    quoteDelivery({
+      deliveryMethod: form.delivery,
+      items: items.map((i) => ({ id: i.product.id, quantity: i.quantity })),
+      promoCode: promoCode ?? undefined,
+    })
+      .then((q) => {
+        if (!cancelled) setQuote(q);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setQuote(null);
+        if (err instanceof ApiError && err.body.code === "PERISHABLE_RUSSIA_BLOCKED") {
+          toast.error(String(err.message));
+          setForm((f) => ({ ...f, delivery: "" }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.delivery, items, promoCode]);
 
   const deliveryLabel = useMemo(() => {
     switch (form.delivery) {
-      case "pickup_left":
-      case "pickup_right":
+      case "pickup_leningradskaya":
+      case "pickup_titova":
         return `Самовывоз: ${PICKUP_ADDRESSES[form.delivery]}`;
-      case "nsk":
+      case "courier_nsk":
         return "Доставка по Новосибирску";
       case "russia":
         return "Доставка по России";
@@ -138,9 +182,9 @@ function CheckoutPage() {
   }, [form.delivery]);
 
   const paymentLabel: Record<PaymentMethod, string> = {
-    card_online: "Картой онлайн",
-    cash_on_delivery: "Наличными при получении",
-    card_on_delivery: "Картой при получении",
+    online: "Картой онлайн",
+    cash_on_pickup: "Наличными при получении",
+    card_on_pickup: "Картой при получении",
   };
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -161,7 +205,7 @@ function CheckoutPage() {
     }
     if (s === 1) {
       if (!form.delivery) next.delivery = "Выберите способ доставки";
-      const needsAddress = form.delivery === "nsk" || form.delivery === "russia";
+      const needsAddress = form.delivery === "courier_nsk" || form.delivery === "russia";
       if (needsAddress && !form.address.trim()) next.address = "Укажите адрес доставки";
       if (form.address.trim().length > 250) next.address = "Слишком длинный адрес";
     }
@@ -181,16 +225,61 @@ function CheckoutPage() {
     e.preventDefault();
     if (!validateStep(0) || !validateStep(1)) return;
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setDone(true);
-    setSubmitting(false);
-    toast.success("Заказ оформлен!", {
-      description: "Мы свяжемся с вами в ближайшее время.",
-    });
-    clearCart();
+    try {
+      const res = await createOrder(
+        {
+          name: form.name.trim(),
+          phone: normalizePhone(form.phone),
+          email: form.email.trim() || undefined,
+          deliveryMethod: form.delivery,
+          deliveryAddress: form.address.trim() || undefined,
+          paymentMethod: form.payment,
+          items: items.map((i) => ({
+            id: i.product.id,
+            quantity: i.quantity,
+            priceRub: i.product.price, // сервер отклонит, если цена изменилась
+          })),
+          promoCode: promoCode ?? undefined,
+        },
+        idempotencyKey,
+      );
+      setDone(true);
+      clearCart();
+      toast.success(`Заказ ${res.orderNumber} оформлен!`);
+      // Онлайн-оплата (этап 3): здесь появится redirect на res.paymentUrl
+      void navigate({
+        to: "/order/$id",
+        params: { id: String(res.id) },
+        search: { token: res.accessToken },
+      });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        const details = (err.body.details ?? []) as Array<{
+          id?: string;
+          reason?: string;
+          availableQty?: number;
+          actualPriceRub?: number;
+        }>;
+        const lines = details.map((d) => {
+          if (d.reason === "out_of_stock")
+            return `«${d.id}»: доступно только ${d.availableQty ?? 0}`;
+          if (d.reason === "price_changed")
+            return `«${d.id}»: цена изменилась (теперь ${d.actualPriceRub} ₽)`;
+          if (d.reason === "unknown_item") return `«${d.id}»: товар недоступен`;
+          return d.reason ?? "";
+        });
+        toast.error(String(err.message), {
+          description: lines.filter(Boolean).join("; ") || undefined,
+        });
+      } else {
+        toast.error("Не удалось оформить заказ — попробуйте ещё раз");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  if (items.length === 0 && !done) {
+  if (!ready || (items.length === 0 && !done)) {
     return null;
   }
 
@@ -296,22 +385,22 @@ function CheckoutPage() {
                         <div className="flex flex-col gap-3">
                           <SectionLabel>Способ доставки</SectionLabel>
                           <RadioCard
-                            checked={form.delivery === "pickup_left"}
-                            onSelect={() => update("delivery", "pickup_left")}
+                            checked={form.delivery === "pickup_leningradskaya"}
+                            onSelect={() => update("delivery", "pickup_leningradskaya")}
                             icon={<Store size={18} />}
                             title="Самовывоз - Левый берег"
-                            description={PICKUP_ADDRESSES.pickup_left}
+                            description={PICKUP_ADDRESSES.pickup_leningradskaya}
                           />
                           <RadioCard
-                            checked={form.delivery === "pickup_right"}
-                            onSelect={() => update("delivery", "pickup_right")}
+                            checked={form.delivery === "pickup_titova"}
+                            onSelect={() => update("delivery", "pickup_titova")}
                             icon={<Store size={18} />}
                             title="Самовывоз - Правый берег"
-                            description={PICKUP_ADDRESSES.pickup_right}
+                            description={PICKUP_ADDRESSES.pickup_titova}
                           />
                           <RadioCard
-                            checked={form.delivery === "nsk"}
-                            onSelect={() => update("delivery", "nsk")}
+                            checked={form.delivery === "courier_nsk"}
+                            onSelect={() => update("delivery", "courier_nsk")}
                             icon={<MapPin size={18} />}
                             title="Доставка по Новосибирску"
                             description="Курьером в день заказа или на следующий день"
@@ -331,7 +420,7 @@ function CheckoutPage() {
                           {errors.delivery && <ErrorText>{errors.delivery}</ErrorText>}
                         </div>
 
-                        {(form.delivery === "nsk" || form.delivery === "russia") && (
+                        {(form.delivery === "courier_nsk" || form.delivery === "russia") && (
                           <Field
                             label="Адрес доставки"
                             required
@@ -353,15 +442,15 @@ function CheckoutPage() {
                         <div className="mt-2 flex flex-col gap-3">
                           <SectionLabel>Способ оплаты</SectionLabel>
                           <RadioCard
-                            checked={form.payment === "card_online"}
-                            onSelect={() => update("payment", "card_online")}
+                            checked={form.payment === "online"}
+                            onSelect={() => update("payment", "online")}
                             icon={<CreditCard size={18} />}
                             title="Картой онлайн"
                             description="Безопасная оплата на сайте"
                           />
                           <RadioCard
-                            checked={form.payment === "cash_on_delivery"}
-                            onSelect={() => isPickup && update("payment", "cash_on_delivery")}
+                            checked={form.payment === "cash_on_pickup"}
+                            onSelect={() => isPickup && update("payment", "cash_on_pickup")}
                             disabled={!isPickup}
                             icon={<Banknote size={18} />}
                             title="Наличными при получении"
@@ -372,8 +461,8 @@ function CheckoutPage() {
                             }
                           />
                           <RadioCard
-                            checked={form.payment === "card_on_delivery"}
-                            onSelect={() => isPickup && update("payment", "card_on_delivery")}
+                            checked={form.payment === "card_on_pickup"}
+                            onSelect={() => isPickup && update("payment", "card_on_pickup")}
                             disabled={!isPickup}
                             icon={<Wallet size={18} />}
                             title="Картой при получении"
@@ -514,7 +603,9 @@ function CheckoutPage() {
                   <div className="sticky top-24">
                     <OrderSummary
                       count={count}
-                      total={total}
+                      total={total + (quote?.deliveryRub ?? 0)}
+                      subtotal={total}
+                      deliveryCost={quote ? quote.deliveryRub : null}
                       deliveryLabel={deliveryLabel || "—"}
                     />
                   </div>
@@ -524,7 +615,9 @@ function CheckoutPage() {
                 <div className="lg:hidden">
                   <OrderSummary
                     count={count}
-                    total={total}
+                    total={total + (quote?.deliveryRub ?? 0)}
+                    subtotal={total}
+                    deliveryCost={quote ? quote.deliveryRub : null}
                     deliveryLabel={deliveryLabel || "—"}
                   />
                 </div>
@@ -840,10 +933,14 @@ function ReviewBlock({
 function OrderSummary({
   count,
   total,
+  subtotal,
+  deliveryCost,
   deliveryLabel,
 }: {
   count: number;
   total: number;
+  subtotal: number;
+  deliveryCost: number | null;
   deliveryLabel: string;
 }) {
   return (
@@ -868,8 +965,18 @@ function OrderSummary({
       >
         Ваш заказ
       </h3>
-      <SummaryLine label={`Товары (${count})`} value={formatPrice(total)} />
-      <SummaryLine label="Доставка" value={deliveryLabel} muted />
+      <SummaryLine label={`Товары (${count})`} value={formatPrice(subtotal)} />
+      <SummaryLine
+        label="Доставка"
+        value={
+          deliveryCost === null
+            ? deliveryLabel
+            : deliveryCost === 0
+              ? "Бесплатно"
+              : formatPrice(deliveryCost)
+        }
+        muted={deliveryCost === null}
+      />
       <hr style={{ borderColor: "rgba(31,26,14,0.08)", margin: "14px 0" }} />
       <div className="flex items-baseline justify-between">
         <span
