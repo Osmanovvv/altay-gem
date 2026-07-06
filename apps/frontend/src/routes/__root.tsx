@@ -13,7 +13,12 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/context/CartContext";
 import { SettingsProvider } from "@/context/SettingsContext";
-import { fetchSettings, type ApiSettings } from "@/lib/api";
+import {
+  fetchCategories,
+  fetchSettings,
+  type ApiCategory,
+  type ApiSettings,
+} from "@/lib/api";
 import { Toaster } from "sonner";
 
 function NotFoundComponent() {
@@ -21,16 +26,16 @@ function NotFoundComponent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Страница не найдена</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
+          Такой страницы нет или она была перемещена.
         </p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            На главную
           </Link>
         </div>
       </div>
@@ -49,10 +54,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          Страница не загрузилась
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          Что-то пошло не так на нашей стороне. Попробуйте обновить страницу или вернуться на главную.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -62,13 +67,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            Попробовать ещё раз
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            На главную
           </a>
         </div>
       </div>
@@ -77,14 +82,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  // Настройки сайта (контакты, точки, подвал) — из админки (ТЗ 6.1);
-  // бэкенд недоступен -> null, компоненты показывают фолбэки.
-  loader: async (): Promise<{ settings: ApiSettings | null }> => {
-    try {
-      return { settings: await fetchSettings() };
-    } catch {
-      return { settings: null };
-    }
+  // Настройки сайта (контакты, точки, подвал) и категории (ссылки подвала) —
+  // из админки (ТЗ 6.1); бэкенд недоступен -> null/[], компоненты — фолбэки.
+  loader: async (): Promise<{
+    settings: ApiSettings | null;
+    categories: ApiCategory[];
+  }> => {
+    const [settings, categories] = await Promise.all([
+      fetchSettings().catch(() => null),
+      fetchCategories().catch(() => [] as ApiCategory[]),
+    ]);
+    return { settings, categories };
   },
   head: () => ({
     meta: [
@@ -130,11 +138,11 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const { settings } = Route.useLoaderData();
+  const { settings, categories } = Route.useLoaderData();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SettingsProvider value={settings}>
+      <SettingsProvider value={settings} categories={categories}>
       <CartProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />

@@ -1,17 +1,19 @@
 import { motion } from "framer-motion";
 import { Calendar, MapPin, Store } from "lucide-react";
 import { HOME_ASSETS } from "@/data/homeAssets";
+import { useSettings } from "@/context/SettingsContext";
 
-const STORES = [
+// Фолбэк на случай недоступного бэкенда; рабочие адреса — из админки
+const FALLBACK_STORES = [
   {
-    title: "Левый берег",
-    address: "ул. Ватутина, 89",
-    note: "Каждый день с 10:00 до 21:00",
+    title: "Жемчужина Алтая",
+    address: "ул. Ленинградская 75/2",
+    note: "Ежедневно 9:00–20:00",
   },
   {
-    title: "Правый берег",
-    address: "ул. Кирова, 27",
-    note: "Каждый день с 10:00 до 21:00",
+    title: "Натуральные продукты",
+    address: "ул. Титова 32",
+    note: "Ежедневно 9:00–20:00",
   },
 ];
 
@@ -20,6 +22,14 @@ interface AboutStorySectionProps {
 }
 
 export function AboutStorySection({ section }: AboutStorySectionProps) {
+  const settings = useSettings();
+  const STORES = settings?.storePoints?.length
+    ? settings.storePoints.map((p) => ({
+        title: p.name,
+        address: p.address,
+        note: p.hours ?? "",
+      }))
+    : FALLBACK_STORES;
   return (
     <section
       id="about"

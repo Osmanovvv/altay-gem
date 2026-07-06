@@ -5,6 +5,7 @@ import { Clock, Leaf, MapPin, Phone, ShieldCheck, Truck } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
+import { useSettings } from "@/context/SettingsContext";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -44,22 +45,32 @@ const ADVANTAGES = [
   },
 ];
 
-const SHOPS = [
+// Фолбэк на случай недоступного бэкенда; рабочие карточки — из админки (ТЗ 6.9)
+const FALLBACK_SHOPS = [
   {
-    name: "Левый берег",
-    address: "г. Новосибирск, ул. Ватутина, 89",
-    phone: "+7 (383) 200-12-12",
-    hours: "Ежедневно, 09:00 - 21:00",
+    name: "Жемчужина Алтая",
+    address: "г. Новосибирск, ул. Ленинградская 75/2",
+    phone: "+7 (383) 000-00-00",
+    hours: "Ежедневно 9:00–20:00",
   },
   {
-    name: "Правый берег",
-    address: "г. Новосибирск, ул. Кирова, 27",
-    phone: "+7 (383) 200-45-45",
-    hours: "Ежедневно, 10:00 - 21:00",
+    name: "Натуральные продукты",
+    address: "г. Новосибирск, ул. Титова 32",
+    phone: "+7 (383) 000-00-00",
+    hours: "Ежедневно 9:00–20:00",
   },
 ];
 
 function AboutPage() {
+  const settings = useSettings();
+  const SHOPS = settings?.storePoints?.length
+    ? settings.storePoints.map((p) => ({
+        name: p.name,
+        address: p.address,
+        phone: p.phone ?? settings.contacts?.phone ?? "",
+        hours: p.hours ?? "",
+      }))
+    : FALLBACK_SHOPS;
   return (
     <div style={{ backgroundColor: "var(--color-bg-cream)", minHeight: "100vh" }}>
       <Header />

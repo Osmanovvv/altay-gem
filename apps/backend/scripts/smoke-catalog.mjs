@@ -98,7 +98,14 @@ await check('GET /categories — дерево с количеством', async 
 
 await check('GET /products/{slug} — полная карточка', async () => {
   const d = await get('/products/syr-graf-monte-kristo');
-  assert(d.characteristics.manufacturer === 'Брюкке', 'характеристики');
+  // Контент правится контент-менеджером — проверяем заполненность, не литералы
+  for (const key of ['weightVolume', 'composition', 'manufacturer', 'shelfLife', 'storage']) {
+    assert(
+      typeof d.characteristics[key] === 'string' && d.characteristics[key].length > 0,
+      `характеристика ${key} пуста`,
+    );
+  }
+  assert(typeof d.fullDescription === 'string' && d.fullDescription.length > 0, 'нет описания');
   assert(d.deliveryZone === 'nsk_only', 'скоропорт должен быть nsk_only');
   assert(Array.isArray(d.related) && d.related.length > 0, 'нет «с этим покупают»');
   assert(d.photos.length > 0, 'нет фото');

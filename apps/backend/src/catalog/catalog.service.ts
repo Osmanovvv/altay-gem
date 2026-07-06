@@ -279,6 +279,7 @@ export class CatalogService {
       ...card,
       fullDescription: sp.fullDescription ?? null,
       photos: (sp.photos ?? [])
+        .slice(0, 5) // до 5 фото на товар (ТЗ 7.2)
         .map((m) => this.strapi.mediaUrl(m))
         .filter((u): u is string => Boolean(u)),
       characteristics: {

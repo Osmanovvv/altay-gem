@@ -1,13 +1,13 @@
 import { Mail, MapPin, Phone } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-const CATALOG = [
-  { label: "Мёд и пчелопродукты", to: "/catalog" },
-  { label: "Травяные чаи", to: "/catalog" },
-  { label: "Продукты из марала", to: "/catalog" },
-  { label: "Натуральная косметика", to: "/catalog" },
-  { label: "Здоровье и БАДы", to: "/catalog" },
-  { label: "Подарочные наборы", to: "/catalog" },
+// Фолбэк колонки «Каталог» на случай недоступного бэкенда;
+// рабочие ссылки строятся из реальных категорий (useCategories)
+const CATALOG_FALLBACK = [
+  { label: "Мёд и пчелопродукты", slug: null },
+  { label: "Травяные чаи", slug: null },
+  { label: "Натуральная косметика", slug: null },
+  { label: "Здоровье и БАДы", slug: null },
 ] as const;
 
 const CUSTOMERS = [
@@ -17,15 +17,21 @@ const CUSTOMERS = [
   { label: "Контакты", to: "/about" },
 ] as const;
 
-import { useSettings } from "@/context/SettingsContext";
+import { useCategories, useSettings } from "@/context/SettingsContext";
 
 export function Footer() {
   const settings = useSettings();
+  const apiCategories = useCategories();
+  // Ссылки на категории каталога (ТЗ 6.1); фолбэк — без фильтра
+  const catalogLinks: Array<{ label: string; slug: string | null }> =
+    apiCategories.length
+      ? apiCategories.map((c) => ({ label: c.name, slug: c.slug }))
+      : [...CATALOG_FALLBACK];
   const points = settings?.storePoints?.length
     ? settings.storePoints
     : [
-        { name: "Левый берег", address: "Новосибирск, ул. Ватутина, 89", hours: "пн-вс: 10:00-21:00" },
-        { name: "Правый берег", address: "Новосибирск, ул. Кирова, 27", hours: "пн-вс: 10:00-21:00" },
+        { name: "Жемчужина Алтая", address: "Новосибирск, ул. Ленинградская 75/2", hours: "Ежедневно 9:00–20:00" },
+        { name: "Натуральные продукты", address: "Новосибирск, ул. Титова 32", hours: "Ежедневно 9:00–20:00" },
       ];
   const phone = settings?.contacts?.phone ?? "+7 (383) 000-00-00";
   const email = settings?.contacts?.email ?? "hello@altai-pearl.ru";
@@ -105,9 +111,14 @@ export function Footer() {
           <div>
             <h4 style={headingStyle}>Каталог</h4>
             <ul className="flex flex-col">
-              {CATALOG.map((l) => (
+              {catalogLinks.map((l) => (
                 <li key={l.label}>
-                  <Link to={l.to} style={linkStyle} className="transition-colors hover:text-white">
+                  <Link
+                    to="/catalog"
+                    search={l.slug ? { category: l.slug } : undefined}
+                    style={linkStyle}
+                    className="transition-colors hover:text-white"
+                  >
                     {l.label}
                   </Link>
                 </li>

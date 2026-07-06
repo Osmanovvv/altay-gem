@@ -1,5 +1,22 @@
 import type { Core } from '@strapi/strapi';
 
+interface HeroLifecycleEvent {
+  result?: { id?: number; heroProduct?: boolean };
+}
+
+/** Снять флаг heroProduct со всех товаров, кроме только что отмеченного. */
+async function unsetOtherHeroes(
+  strapi: Core.Strapi,
+  event: HeroLifecycleEvent,
+): Promise<void> {
+  const { result } = event;
+  if (!result?.id || !result.heroProduct) return;
+  await strapi.db.query('api::product.product').updateMany({
+    where: { id: { $ne: result.id }, heroProduct: true },
+    data: { heroProduct: false },
+  });
+}
+
 /**
  * Bootstrap: роль «Editor» (контент-менеджер заказчика) получает права
  * CRUD на все прикладные модели (api::*). В Strapi права на новые
@@ -11,6 +28,18 @@ export default {
   register(): void {},
 
   async bootstrap({ strapi }: { strapi: Core.Strapi }): Promise<void> {
+    // Товар-хит главной — единственный (ТЗ 7.2): при установке флага
+    // heroProduct снимаем его со всех остальных товаров.
+    strapi.db.lifecycles.subscribe({
+      models: ['api::product.product'],
+      async afterCreate(event) {
+        await unsetOtherHeroes(strapi, event);
+      },
+      async afterUpdate(event) {
+        await unsetOtherHeroes(strapi, event);
+      },
+    });
+
     const editor = await strapi.db
       .query('admin::role')
       .findOne({ where: { code: 'strapi-editor' } });

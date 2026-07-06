@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
+  CreditCard,
   MapPin,
   RotateCcw,
   Store,
@@ -33,6 +34,34 @@ export const Route = createFileRoute("/delivery")({
 });
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
+
+// Шаги оформления (ТЗ 6.9) — соответствуют реальному чекауту витрины
+const ORDER_STEPS = [
+  {
+    title: "Соберите корзину",
+    text: "Выберите товары в каталоге; весовые продукты добавляются порциями по 100 г.",
+  },
+  {
+    title: "Оформите заказ",
+    text: "Укажите контакты, способ получения и оплаты — доставку посчитаем сразу, до оплаты.",
+  },
+  {
+    title: "Подтверждение",
+    text: "После оформления откроется страница заказа с номером, составом и статусом.",
+  },
+  {
+    title: "Получение",
+    text: "Заберите заказ в магазине или дождитесь курьера; по России отправим СДЭК или Почтой.",
+  },
+];
+
+// Способы оплаты (ТЗ 6.9): МИР, СБП, наличные/карта при получении
+const PAY_METHODS = [
+  "Карта МИР онлайн",
+  "СБП (оплата по QR)",
+  "Наличными при получении",
+  "Картой при получении",
+];
 const formatWeight = (g: number) =>
   g % 1000 === 0 ? `${g / 1000} кг` : `${(g / 1000).toLocaleString("ru-RU")} кг`;
 
@@ -237,8 +266,104 @@ function DeliveryPage() {
           </div>
         </Section>
 
-        {/* Perishable + return */}
+        {/* Как заказать + способы оплаты (ТЗ 6.9) */}
         <Section>
+          <SectionEyebrow>Просто и по шагам</SectionEyebrow>
+          <SectionTitle>Как заказать</SectionTitle>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {ORDER_STEPS.map((s, i) => (
+              <div
+                key={s.title}
+                style={{
+                  backgroundColor: "#fffdf7",
+                  border: "1px solid rgba(31,26,14,0.06)",
+                  borderRadius: 20,
+                  padding: 24,
+                  boxShadow: "var(--shadow-card)",
+                }}
+              >
+                <span
+                  className="inline-flex items-center justify-center rounded-full"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    backgroundColor: "rgba(232,180,79,0.18)",
+                    color: "var(--color-accent-dark)",
+                    fontFamily: "var(--font-display)",
+                    fontSize: 18,
+                    fontWeight: 600,
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <h3
+                  className="mt-4"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 19,
+                    fontWeight: 600,
+                    color: "var(--color-bg-dark)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {s.title}
+                </h3>
+                <p
+                  className="mt-2"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                    color: "var(--color-text-muted)",
+                  }}
+                >
+                  {s.text}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12">
+            <SectionEyebrow>Оплата</SectionEyebrow>
+            <SectionTitle>Способы оплаты</SectionTitle>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {PAY_METHODS.map((m) => (
+                <span
+                  key={m}
+                  className="inline-flex items-center gap-2 rounded-full"
+                  style={{
+                    backgroundColor: "#fffdf7",
+                    border: "1px solid rgba(31,26,14,0.1)",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "var(--color-text)",
+                    padding: "11px 18px",
+                  }}
+                >
+                  <CreditCard size={16} style={{ color: "var(--color-accent-dark)" }} />
+                  {m}
+                </span>
+              ))}
+            </div>
+            <p
+              className="mt-4 max-w-2xl"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: 14,
+                lineHeight: 1.55,
+                color: "var(--color-text-muted)",
+              }}
+            >
+              Онлайн-оплата проходит на защищённой платёжной странице; чек
+              приходит на e-mail или телефон. Оплата наличными и картой при
+              получении доступна для самовывоза.
+            </p>
+          </div>
+        </Section>
+
+        {/* Perishable + return */}
+        <Section variant="muted">
           <div className="grid gap-5 md:grid-cols-2">
             <InfoCard
               tone="warning"

@@ -7,7 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
 import { fetchPromos, promoIcon, toPromo } from "@/lib/api";
 
-export const Route = createFileRoute("/promo")({
+export const Route = createFileRoute("/promo/")({
   head: () => ({
     meta: [
       { title: "Акции и скидки - Жемчужина Алтая" },
@@ -167,3 +167,4 @@ function PromoIndexPage() {
     </>
   );
 }
+
