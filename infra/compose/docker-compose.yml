@@ -1,0 +1,109 @@
+# Локальный dev-стек. Запуск из корня репо:
+#   make up   (docker compose --env-file infra/compose/images.env -f infra/compose/docker-compose.yml up -d --build)
+# Пины образов — infra/compose/images.env. Секреты в этом файле — ТОЛЬКО dev-значения
+# для локального контура; прод-окружение конфигурируется через .env на сервере (шаг 0.7).
+
+name: altai
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?задайте в infra/compose/images.env}
+    environment:
+      POSTGRES_USER: altai
+      POSTGRES_PASSWORD: altai
+      POSTGRES_DB: altai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U altai -d altai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: ${REDIS_IMAGE:?задайте в infra/compose/images.env}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://altai:altai@postgres:5432/altai
+      REDIS_URL: redis://redis:6379
+      STRAPI_URL: http://strapi:1337
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # readiness: реальная проверка доступности postgres и redis
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  strapi:
+    build:
+      context: ../..
+      dockerfile: infra/docker/strapi.Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "1337"
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: strapi
+      DATABASE_USERNAME: altai
+      DATABASE_PASSWORD: altai
+      DATABASE_SSL: "false"
+      # dev-only секреты локального контура (не прод!)
+      APP_KEYS: devAppKeyOne==,devAppKeyTwo==
+      API_TOKEN_SALT: devApiTokenSalt==
+      ADMIN_JWT_SECRET: devAdminJwtSecret==
+      JWT_SECRET: devJwtSecret==
+      TRANSFER_TOKEN_SALT: devTransferSalt==
+      ENCRYPTION_KEY: devEncryptionKey==
+    ports:
+      - "1337:1337"
+    volumes:
+      - strapi-uploads:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:1337/_health',{method:'HEAD'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8088:80"
+    volumes:
+      - ../nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  strapi-uploads:

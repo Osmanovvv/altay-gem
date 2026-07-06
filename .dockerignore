@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.output
+**/build
+**/.cache
+**/.git
+.git
+apps/frontend
+infra/backup
+infra/certs/*.key
+**/.env
+**/.env.*
+!**/.env.example
+*.log

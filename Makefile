@@ -9,11 +9,14 @@ help: ## Показать список команд
 submodule-init: ## Инициализировать сабмодуль фронтенда
 	git submodule update --init --recursive
 
-up: ## Поднять весь стек (docker compose) — появится на шаге 0.5
-	@echo "TODO(0.5): docker compose -f infra/compose/docker-compose.yml up -d"
+up: ## Поднять весь стек (docker compose, с пересборкой)
+	docker compose --env-file infra/compose/images.env -f infra/compose/docker-compose.yml up -d --build
 
 down: ## Остановить стек
-	@echo "TODO(0.5): docker compose -f infra/compose/docker-compose.yml down"
+	docker compose --env-file infra/compose/images.env -f infra/compose/docker-compose.yml down
+
+ps: ## Статус контейнеров стека
+	docker compose --env-file infra/compose/images.env -f infra/compose/docker-compose.yml ps
 
 backend-dev: ## Запустить backend в dev-режиме (нужен .env или переменные окружения)
 	cd apps/backend && bun run start:dev

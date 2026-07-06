@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { AppController } from './app.controller';
 import { validateEnv } from './config/env';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -23,6 +24,6 @@ import { validateEnv } from './config/env';
       },
     }),
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
 })
 export class AppModule {}
