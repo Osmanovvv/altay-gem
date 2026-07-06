@@ -10,6 +10,7 @@ import { Package, Search, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ProductGrid } from "@/components/catalog/ProductGrid";
+import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
 import { fetchCatalog, fetchCategories, toCategory, toProduct } from "@/lib/api";
 
@@ -82,6 +83,7 @@ function SearchPage() {
   }, [debounced, q, navigate]);
 
   const { categories } = Route.useLoaderData();
+  const { addToCart } = useCart();
   // Поиск выполняется на бэкенде (ТЗ 6.9)
   const [results, setResults] = useState<Product[]>([]);
   useEffect(() => {
@@ -118,6 +120,7 @@ function SearchPage() {
   };
 
   const onAdd = (p: Product) => {
+    addToCart(p);
     setToast(`«${p.name}» добавлено в корзину`);
     window.setTimeout(() => setToast(null), 2200);
   };

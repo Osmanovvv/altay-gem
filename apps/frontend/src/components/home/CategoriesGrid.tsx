@@ -87,15 +87,17 @@ export function CategoriesGrid({ categories }: CategoriesGridProps) {
                     textDecoration: "none",
                   }}
                 >
-                  <img
-                    src={cat.image}
-                    alt={cat.imageAlt}
-                    width={900}
-                    height={540}
-                    loading="lazy"
-                    decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                  {cat.image && (
+                    <img
+                      src={cat.image}
+                      alt={cat.imageAlt}
+                      width={900}
+                      height={540}
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  )}
                   <span
                     aria-hidden
                     className="pointer-events-none absolute inset-0"

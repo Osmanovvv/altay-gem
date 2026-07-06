@@ -561,6 +561,9 @@ function CheckoutPage() {
 
                     {step < 2 ? (
                       <button
+                        // key разводит DOM-узлы «Далее»/«Подтвердить»: иначе клик
+                        // по «Далее» после смены шага дощёлкивает type=submit
+                        key="next"
                         type="button"
                         onClick={goNext}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-full sm:w-auto"
@@ -579,6 +582,7 @@ function CheckoutPage() {
                       </button>
                     ) : (
                       <button
+                        key="submit"
                         type="submit"
                         disabled={submitting}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-full disabled:opacity-60 sm:w-auto"
