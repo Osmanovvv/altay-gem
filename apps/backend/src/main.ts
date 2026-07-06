@@ -20,7 +20,6 @@ async function bootstrap() {
 
 bootstrap().catch((err: unknown) => {
   // Понятная ошибка вместо молчаливого падения — в т.ч. при невалидном .env
-  // eslint-disable-next-line no-console
   console.error(
     '[altai-backend] Запуск невозможен:\n' +
       (err instanceof Error ? err.message : String(err)),
