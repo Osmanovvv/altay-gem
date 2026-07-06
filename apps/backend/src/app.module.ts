@@ -4,6 +4,8 @@ import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { AppController } from './app.controller';
+import { CacheModule } from './cache/cache.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { validateEnv } from './config/env';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
@@ -17,6 +19,8 @@ import { HealthController } from './health/health.controller';
       envFilePath: ['.env', '../../.env'],
     }),
     DatabaseModule,
+    CacheModule,
+    CatalogModule,
     LoggerModule.forRoot({
       pinoHttp: {
         genReqId: (req: IncomingMessage) =>

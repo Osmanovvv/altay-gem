@@ -1,0 +1,305 @@
+{
+ "note": "Тестовый сид до этапа 2 (реальные товары из дампа, uuid-ы магазинов синтетические)",
+ "stores": [
+  {
+   "id": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "name": "Жемчужина Алтая (тест до этапа 2)",
+   "address": "г. Новосибирск, ул. Ленинградская 75/2"
+  },
+  {
+   "id": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "name": "Натуральные продукты (тест до этапа 2)",
+   "address": "г. Новосибирск, ул. Титова 32"
+  }
+ ],
+ "products": [
+  {
+   "uuid": "0383c7fd-79b5-47b2-8264-ebb4fcee2800",
+   "name": "Сыр Граф Монте Кристо",
+   "priceKopecks": 119000,
+   "costPriceKopecks": 65990,
+   "quantity": "1.892",
+   "measure": "кг",
+   "groupName": "Брюкке Сыры",
+   "barcodes": [
+    "4640018530296"
+   ],
+   "article": null,
+   "code": "614",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4640018530296"
+  },
+  {
+   "uuid": "e6d2ec94-bd86-549f-8eac-9dfa0d1097d1",
+   "name": "Сыр Граф Монте Кристо",
+   "priceKopecks": 119000,
+   "costPriceKopecks": 65990,
+   "quantity": "0.757",
+   "measure": "кг",
+   "groupName": "Брюкке Сыры",
+   "barcodes": [
+    "4640018530296"
+   ],
+   "article": null,
+   "code": "614",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4640018530296"
+  },
+  {
+   "uuid": "0819a4ae-a896-4f3b-89b8-443770072078",
+   "name": "Масло сливочное Куяган Вес",
+   "priceKopecks": 199000,
+   "costPriceKopecks": 120000,
+   "quantity": "2.654",
+   "measure": "кг",
+   "groupName": "Куяган",
+   "barcodes": [
+    "2010062075593"
+   ],
+   "article": "7930080873213",
+   "code": "7930080873213",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "2010062075593"
+  },
+  {
+   "uuid": "5b919329-3bb2-5c0b-b544-71118f25d4c2",
+   "name": "Масло сливочное Куяган Вес",
+   "priceKopecks": 199000,
+   "costPriceKopecks": 120000,
+   "quantity": "1.062",
+   "measure": "кг",
+   "groupName": "Куяган",
+   "barcodes": [
+    "2010062075593"
+   ],
+   "article": "7930080873213",
+   "code": "7930080873213",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "2010062075593"
+  },
+  {
+   "uuid": "00c9dd8f-024a-46df-9f90-ae7354ee263b",
+   "name": "Сыр плавленый шоколадный",
+   "priceKopecks": 16500,
+   "costPriceKopecks": 9890,
+   "quantity": "7.0",
+   "measure": "шт",
+   "groupName": "Брюкке Сыры",
+   "barcodes": [
+    "4607068351929"
+   ],
+   "article": null,
+   "code": "4607005360",
+   "evotorType": "DAIRY_MARKED",
+   "isMarked": true,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4607068351929"
+  },
+  {
+   "uuid": "a94ed956-0f84-5a0b-b83d-51d6230b3711",
+   "name": "Сыр плавленый шоколадный",
+   "priceKopecks": 16500,
+   "costPriceKopecks": 9890,
+   "quantity": "2.8",
+   "measure": "шт",
+   "groupName": "Брюкке Сыры",
+   "barcodes": [
+    "4607068351929"
+   ],
+   "article": null,
+   "code": "4607005360",
+   "evotorType": "DAIRY_MARKED",
+   "isMarked": true,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4607068351929"
+  },
+  {
+   "uuid": "000a290f-86a8-4b6f-9724-ef25e0e75c2d",
+   "name": "Пантогематоген  250 мл.",
+   "priceKopecks": 126000,
+   "costPriceKopecks": 63000,
+   "quantity": "6.0",
+   "measure": "шт",
+   "groupName": "Биостимул",
+   "barcodes": [
+    "4607081980038"
+   ],
+   "article": "4607007040",
+   "code": "4607007040",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4607081980038"
+  },
+  {
+   "uuid": "aa1d568e-dd19-537a-a034-d2ff7fcdce98",
+   "name": "Пантогематоген  250 мл.",
+   "priceKopecks": 126000,
+   "costPriceKopecks": 63000,
+   "quantity": "2.4",
+   "measure": "шт",
+   "groupName": "Биостимул",
+   "barcodes": [
+    "4607081980038"
+   ],
+   "article": "4607007040",
+   "code": "4607007040",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4607081980038"
+  },
+  {
+   "uuid": "002946e7-120e-4ca0-ac17-1ea3b074fffc",
+   "name": "Барсучий жир без добавок чистые легкие (АлтайБиоПроект), 50 г",
+   "priceKopecks": 69000,
+   "costPriceKopecks": 40000,
+   "quantity": "3.0",
+   "measure": "шт",
+   "groupName": "Алтайбиопроект",
+   "barcodes": [
+    "4627121940891"
+   ],
+   "article": null,
+   "code": "1153",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4627121940891"
+  },
+  {
+   "uuid": "21e7b65b-7e02-55d5-bc1a-53903f5f524a",
+   "name": "Барсучий жир без добавок чистые легкие (АлтайБиоПроект), 50 г",
+   "priceKopecks": 69000,
+   "costPriceKopecks": 40000,
+   "quantity": "1.2",
+   "measure": "шт",
+   "groupName": "Алтайбиопроект",
+   "barcodes": [
+    "4627121940891"
+   ],
+   "article": null,
+   "code": "1153",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4627121940891"
+  },
+  {
+   "uuid": "00790ac5-02bc-4a3d-b136-1b5f8a74b187",
+   "name": "Бальзам Горно-Алтайский / 100 мл",
+   "priceKopecks": 56000,
+   "costPriceKopecks": 28000,
+   "quantity": "17.0",
+   "measure": "шт",
+   "groupName": "Нарине",
+   "barcodes": [
+    "4607068885400"
+   ],
+   "article": null,
+   "code": "149",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4607068885400"
+  },
+  {
+   "uuid": "9e93eec3-e79c-5331-915e-91eb0b1b2c62",
+   "name": "Бальзам Горно-Алтайский / 100 мл",
+   "priceKopecks": 56000,
+   "costPriceKopecks": 28000,
+   "quantity": "6.8",
+   "measure": "шт",
+   "groupName": "Нарине",
+   "barcodes": [
+    "4607068885400"
+   ],
+   "article": null,
+   "code": "149",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4607068885400"
+  },
+  {
+   "uuid": "00ca285a-109f-43b4-b691-7ee67d97d49c",
+   "name": "Силапант набор INTENSIV-уход",
+   "priceKopecks": 125000,
+   "costPriceKopecks": 52800,
+   "quantity": "2.0",
+   "measure": "шт",
+   "groupName": "Две линии Косметика",
+   "barcodes": [
+    "4607082859999"
+   ],
+   "article": null,
+   "code": "1211",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4607082859999"
+  },
+  {
+   "uuid": "5e810521-8a4f-5ff3-96ba-3801b0f9f62e",
+   "name": "Силапант набор INTENSIV-уход",
+   "priceKopecks": 125000,
+   "costPriceKopecks": 52800,
+   "quantity": "0.8",
+   "measure": "шт",
+   "groupName": "Две линии Косметика",
+   "barcodes": [
+    "4607082859999"
+   ],
+   "article": null,
+   "code": "1211",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4607082859999"
+  },
+  {
+   "uuid": "00db3232-0e82-4265-a638-6c1c32a280d7",
+   "name": "Мука Монастырский двор 2 кг",
+   "priceKopecks": 16000,
+   "costPriceKopecks": 7875,
+   "quantity": "2.0",
+   "measure": "шт",
+   "groupName": "Монастырский двор",
+   "barcodes": [
+    "4650255630451"
+   ],
+   "article": "7930080874176",
+   "code": "7930080874176",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "a61828db-d5c7-52f5-87cf-a48b0f7f88a8",
+   "matchKey": "4650255630451"
+  },
+  {
+   "uuid": "1b291eab-510f-5d98-baf3-e92931e7498c",
+   "name": "Мука Монастырский двор 2 кг",
+   "priceKopecks": 16000,
+   "costPriceKopecks": 7875,
+   "quantity": "0.8",
+   "measure": "шт",
+   "groupName": "Монастырский двор",
+   "barcodes": [
+    "4650255630451"
+   ],
+   "article": "7930080874176",
+   "code": "7930080874176",
+   "evotorType": "NORMAL",
+   "isMarked": false,
+   "storeId": "72726e9b-bd8a-5096-a681-f8a161cd4e26",
+   "matchKey": "4650255630451"
+  }
+ ]
+}
