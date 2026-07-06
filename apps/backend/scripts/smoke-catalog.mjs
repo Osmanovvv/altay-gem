@@ -143,6 +143,57 @@ await check('GET /settings — контакты, точки, тарифы', asyn
   assert(d.delivery.russiaWeightTiers.length === 4, 'сетка веса');
 });
 
+const post = async (path, body, expectStatus = 200) => {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.status !== expectStatus) {
+    throw new Error(`${path} -> HTTP ${res.status} (ждали ${expectStatus})`);
+  }
+  return res.json().catch(() => null);
+};
+
+const CART_HEALTH = [
+  { id: 'pantogematogen-250-ml', quantity: 2 }, // Здоровье Алтая, 1260р
+  { id: 'syr-graf-monte-kristo', quantity: 3 }, // Сыры, 119р/порция
+];
+
+await check('POST /promo/validate — скидка только с категории акции', async () => {
+  const d = await post('/promo/validate', { code: 'ALTAI10', items: CART_HEALTH });
+  assert(d.valid === true, `valid=${d.valid} ${d.message ?? ''}`);
+  assert(d.discountRub === 252, `скидка ${d.discountRub}, ждали 252 (10% с 2520)`);
+  assert(d.appliesTo === 'category', 'appliesTo');
+});
+
+await check('POST /promo/validate — регистр кода не важен', async () => {
+  const d = await post('/promo/validate', { code: 'altai10', items: CART_HEALTH });
+  assert(d.valid === true, 'нижний регистр не принят');
+});
+
+await check('POST /promo/validate — не применим к чужой корзине', async () => {
+  const d = await post('/promo/validate', {
+    code: 'ALTAI10',
+    items: [{ id: 'syr-graf-monte-kristo', quantity: 1 }],
+  });
+  assert(d.valid === false && d.reason === 'not_applicable', `reason=${d.reason}`);
+});
+
+await check('POST /promo/validate — не найден / истёк / выключен', async () => {
+  const nf = await post('/promo/validate', { code: 'NOSUCH', items: CART_HEALTH });
+  assert(nf.reason === 'not_found' && nf.message.includes('не найден'), 'not_found');
+  const old = await post('/promo/validate', { code: 'OLD10', items: CART_HEALTH });
+  assert(old.reason === 'expired', `OLD10 reason=${old.reason}`);
+  const stop = await post('/promo/validate', { code: 'STOP10', items: CART_HEALTH });
+  assert(stop.reason === 'inactive', `STOP10 reason=${stop.reason}`);
+});
+
+await check('POST /promo/validate — валидация тела (400)', async () => {
+  await post('/promo/validate', { code: 'X'.repeat(100), items: [] }, 400);
+  await post('/promo/validate', { items: CART_HEALTH }, 400);
+});
+
 if (failed) {
   console.error(`\nПРОВАЛЕНО ПРОВЕРОК: ${failed}`);
   process.exit(1);

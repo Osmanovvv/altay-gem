@@ -139,6 +139,32 @@ export class StrapiService {
     );
   }
 
+  async promocodeByCode(code: string): Promise<{
+    code: string;
+    active: boolean;
+    discountPercent: number;
+    validFrom?: string | null;
+    validTo?: string | null;
+    usageLimit?: number | null;
+    categoryRestriction?: { slug: string } | null;
+  } | null> {
+    const res = await this.fetchJson<{ data: Array<Record<string, unknown>> }>(
+      `/api/promocodes?filters[code][$eqi]=${encodeURIComponent(code)}&populate[categoryRestriction]=true`,
+    );
+    const p = res.data[0];
+    if (!p) return null;
+    return {
+      code: String(p.code),
+      active: Boolean(p.active),
+      discountPercent: Number(p.discountPercent),
+      validFrom: (p.validFrom as string) ?? null,
+      validTo: (p.validTo as string) ?? null,
+      usageLimit: p.usageLimit == null ? null : Number(p.usageLimit),
+      categoryRestriction:
+        (p.categoryRestriction as { slug: string } | null) ?? null,
+    };
+  }
+
   async siteSettings(): Promise<Record<string, unknown>> {
     const res = await this.fetchJson<{ data: Record<string, unknown> }>(
       '/api/site-setting?populate=*',
