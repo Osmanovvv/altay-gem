@@ -11,6 +11,7 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
+import { useSettings } from "@/context/SettingsContext";
 
 export const Route = createFileRoute("/delivery")({
   head: () => ({
@@ -31,37 +32,61 @@ export const Route = createFileRoute("/delivery")({
   component: DeliveryPage,
 });
 
-const METHODS = [
-  {
-    icon: Store,
-    title: "Самовывоз",
-    badge: "Бесплатно",
-    text: "Заберите заказ в одном из двух магазинов в Новосибирске. Резерв на 48 часов после подтверждения. Без предоплаты.",
-  },
-  {
-    icon: MapPin,
-    title: "Курьером по Новосибирску",
-    badge: "От 300 ₽",
-    text: "Доставим в день заказа при оформлении до 14:00 или на следующий день. Подходит для скоропортящихся товаров - сыров и охлаждённых продуктов.",
-  },
-  {
-    icon: Truck,
-    title: "Доставка по России",
-    badge: "СДЭК / Почта",
-    text: "Отправляем СДЭК или Почтой России в день оплаты. Только товары длительного хранения: мёд, чаи, бальзамы, косметика, пантовая продукция.",
-  },
-];
+const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
+const formatWeight = (g: number) =>
+  g % 1000 === 0 ? `${g / 1000} кг` : `${(g / 1000).toLocaleString("ru-RU")} кг`;
 
-const RATES = [
-  { region: "Новосибирск, курьер", time: "1-2 дня", price: "от 300 ₽" },
-  { region: "Новосибирск, самовывоз", time: "В день заказа", price: "Бесплатно" },
-  { region: "Сибирский ФО (СДЭК)", time: "2-4 дня", price: "от 350 ₽" },
-  { region: "Урал, Центр (СДЭК)", time: "3-5 дней", price: "от 450 ₽" },
-  { region: "Юг, Северо-Запад (СДЭК)", time: "5-7 дней", price: "от 550 ₽" },
-  { region: "Дальний Восток (Почта)", time: "7-14 дней", price: "от 600 ₽" },
-];
+// Фолбэки на случай недоступного бэкенда; рабочие цифры приходят из админки
+const FALLBACK_DELIVERY = {
+  courierNskPriceRub: 300,
+  freeDeliveryThresholdRub: 3000,
+  russiaWeightTiers: [] as Array<{ weightUpToG: number; priceRub: number }>,
+  termsText: null as string | null,
+};
 
 function DeliveryPage() {
+  const settings = useSettings();
+  const delivery = settings?.delivery ?? FALLBACK_DELIVERY;
+  const courierRub = delivery.courierNskPriceRub ?? 300;
+  const freeFromRub = delivery.freeDeliveryThresholdRub;
+
+  const methods = [
+    {
+      icon: Store,
+      title: "Самовывоз",
+      badge: "Бесплатно",
+      text: "Заберите заказ в одном из двух магазинов в Новосибирске. Резерв на 48 часов после подтверждения. Без предоплаты.",
+    },
+    {
+      icon: MapPin,
+      title: "Курьером по Новосибирску",
+      badge: `${formatPrice(courierRub)}`,
+      text: "Доставим в день заказа при оформлении до 14:00 или на следующий день. Подходит для скоропортящихся товаров - сыров и охлаждённых продуктов.",
+    },
+    {
+      icon: Truck,
+      title: "Доставка по России",
+      badge: "СДЭК / Почта",
+      text: "Отправляем СДЭК или Почтой России в день оплаты. Только товары длительного хранения: мёд, чаи, бальзамы, косметика, пантовая продукция.",
+    },
+  ];
+
+  // Тарифная таблица — те же данные, по которым бэкенд считает доставку в заказе
+  const rates: Array<{ label: string; note: string; price: string }> = [
+    { label: "Новосибирск, самовывоз", note: "в день заказа", price: "Бесплатно" },
+    {
+      label: "Новосибирск, курьер",
+      note: "1-2 дня",
+      price: freeFromRub
+        ? `${formatPrice(courierRub)}, от ${formatPrice(freeFromRub)} - бесплатно`
+        : formatPrice(courierRub),
+    },
+    ...delivery.russiaWeightTiers.map((t) => ({
+      label: `По России, до ${formatWeight(t.weightUpToG)}`,
+      note: "СДЭК / Почта России",
+      price: formatPrice(t.priceRub),
+    })),
+  ];
   return (
     <div style={{ backgroundColor: "var(--color-bg-cream)", minHeight: "100vh" }}>
       <Header />
@@ -79,7 +104,7 @@ function DeliveryPage() {
           <SectionEyebrow>Как доставляем</SectionEyebrow>
           <SectionTitle>Способы доставки</SectionTitle>
           <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {METHODS.map((m, i) => (
+            {methods.map((m, i) => (
               <motion.article
                 key={m.title}
                 initial={{ opacity: 0, y: 16 }}
@@ -164,8 +189,12 @@ function DeliveryPage() {
               lineHeight: 1.55,
             }}
           >
-            Финальная стоимость зависит от веса и габаритов заказа. Бесплатная
-            доставка по Новосибирску при заказе от 3000 ₽.
+            {delivery.termsText ??
+              `Финальная стоимость зависит от веса заказа и считается автоматически при оформлении.${
+                freeFromRub
+                  ? ` Бесплатная доставка по Новосибирску при заказе от ${formatPrice(freeFromRub)}.`
+                  : ""
+              }`}
           </p>
 
           <div
@@ -180,15 +209,15 @@ function DeliveryPage() {
             <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ backgroundColor: "rgba(31,26,14,0.04)" }}>
-                  <Th>Регион</Th>
+                  <Th>Способ / вес</Th>
                   <Th>Срок</Th>
                   <Th align="right">Стоимость</Th>
                 </tr>
               </thead>
               <tbody>
-                {RATES.map((r, i) => (
+                {rates.map((r, i) => (
                   <tr
-                    key={r.region}
+                    key={r.label}
                     style={{
                       borderTop:
                         i === 0
@@ -196,8 +225,8 @@ function DeliveryPage() {
                           : "1px solid rgba(31,26,14,0.06)",
                     }}
                   >
-                    <Td bold>{r.region}</Td>
-                    <Td muted>{r.time}</Td>
+                    <Td bold>{r.label}</Td>
+                    <Td muted>{r.note}</Td>
                     <Td align="right" accent>
                       {r.price}
                     </Td>

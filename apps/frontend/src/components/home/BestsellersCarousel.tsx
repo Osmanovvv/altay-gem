@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
-import type { Bestseller } from "@/data/bestsellers";
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
 import { gradientFor, toProduct, type ApiCard } from "@/lib/api";
 
-const BADGE_STYLES: Record<NonNullable<Bestseller["badge"]>, { bg: string; color: string }> = {
+/** Карточка карусели хитов; собирается из ApiCard (/home.hits). */
+interface Bestseller {
+  id: string;
+  name: string;
+  category: string;
+  weight: string;
+  price: number;
+  oldPrice?: number;
+  image: string;
+  imageAlt: string;
+  imageFallback: string;
+  badge?: string;
+}
+
+const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
   "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
   "Новинка": { bg: "var(--color-success)", color: "#f5efe0" },
   "-15%": { bg: "var(--color-error)", color: "#f5efe0" },
@@ -31,7 +44,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
     image: c.photo ?? "",
     imageAlt: c.name,
     imageFallback: gradientFor(c.categorySlug),
-    badge: c.badges[0] as Bestseller["badge"],
+    badge: c.badges[0],
   }));
   const cardBySlug = new Map(hitCards.map((c) => [c.slug, c]));
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -78,6 +91,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
     id: b.id,
     name: b.name,
     category: "bestseller",
+    categoryName: b.category,
     subcategory: b.category,
     price: b.price,
     oldPrice: b.oldPrice ?? null,

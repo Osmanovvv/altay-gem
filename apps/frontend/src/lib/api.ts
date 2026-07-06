@@ -294,6 +294,7 @@ export function toProduct(c: ApiCard): Product {
     id: c.slug,
     name: c.name,
     category: c.categorySlug ?? "",
+    categoryName: c.categoryName ?? "",
     subcategory: c.subcategory ?? c.categoryName ?? "",
     price: c.priceRub,
     oldPrice: c.oldPriceRub,

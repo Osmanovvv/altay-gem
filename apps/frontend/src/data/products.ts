@@ -10,6 +10,7 @@ export interface Product {
   id: string; // slug товара (публичный идентификатор, URL карточки)
   name: string;
   category: string; // slug категории
+  categoryName: string; // отображаемое имя категории (корзина, карточки)
   subcategory: string;
   price: number; // руб.; для весовых — цена за порцию
   oldPrice: number | null;

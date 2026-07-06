@@ -14,7 +14,6 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart, type CartItem } from "@/context/CartContext";
-import { CATEGORIES } from "@/data/categories";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -294,7 +293,6 @@ function CartItemRow({
   onRemove: () => void;
 }) {
   const { product, quantity } = item;
-  const category = CATEGORIES.find((c) => c.id === product.category);
   const lineTotal = product.price * quantity;
   const oldLineTotal = product.oldPrice ? product.oldPrice * quantity : null;
 
@@ -343,7 +341,7 @@ function CartItemRow({
             color: "var(--color-accent-dark)",
           }}
         >
-          {category?.name ?? product.subcategory}
+          {product.categoryName || product.subcategory}
         </span>
         <Link
           to="/product/$slug"

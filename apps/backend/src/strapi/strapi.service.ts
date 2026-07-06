@@ -56,17 +56,21 @@ export interface StrapiCategory {
 export class StrapiService {
   private readonly log = new Logger(StrapiService.name);
   private readonly base: string;
+  private readonly publicBase: string;
   private readonly token: string;
 
   constructor(config: ConfigService) {
     this.base = config.get<string>('STRAPI_URL', 'http://localhost:1337');
+    // База для ссылок на медиа, которые уходят в браузер: внутри docker
+    // STRAPI_URL = http://strapi:1337 и снаружи недоступен (на проде — домен за nginx)
+    this.publicBase = config.get<string>('STRAPI_PUBLIC_URL', this.base);
     this.token = config.get<string>('STRAPI_API_TOKEN', '');
   }
 
-  /** Абсолютный URL для медиафайла Strapi. */
+  /** Абсолютный URL для медиафайла Strapi (доступный из браузера). */
   mediaUrl(media?: StrapiMedia | null): string | null {
     if (!media?.url) return null;
-    return media.url.startsWith('http') ? media.url : this.base + media.url;
+    return media.url.startsWith('http') ? media.url : this.publicBase + media.url;
   }
 
   private async fetchJson<T>(path: string): Promise<T> {

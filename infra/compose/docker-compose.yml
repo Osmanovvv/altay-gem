@@ -44,6 +44,8 @@ services:
       DATABASE_URL: postgresql://altai:altai@postgres:5432/altai
       REDIS_URL: redis://redis:6379
       STRAPI_URL: http://strapi:1337
+      # база ссылок на медиа для браузера (на проде — https://домен за nginx)
+      STRAPI_PUBLIC_URL: ${STRAPI_PUBLIC_URL:-http://localhost:1337}
       # из корневого .env (make up подхватывает его вторым --env-file)
       STRAPI_API_TOKEN: ${STRAPI_API_TOKEN:-}
     ports:

@@ -13,6 +13,7 @@ import { Footer } from "@/components/layout/Footer";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductInfo } from "@/components/product/ProductInfo";
 import { RelatedProducts } from "@/components/product/RelatedProducts";
+import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
 import { ApiError, fetchProduct, toProduct } from "@/lib/api";
 
@@ -99,6 +100,7 @@ function ProductNotFound() {
 function ProductPage() {
   const { detail, product } = Route.useLoaderData();
   const navigate = useNavigate();
+  const { addToCart } = useCart();
   const [toast, setToast] = useState<string | null>(null);
 
   const category = detail.categoryName
@@ -124,6 +126,7 @@ function ProductPage() {
   };
 
   const onAdd = (p: Product, qty = 1) => {
+    addToCart(p, qty);
     showToast(`Товар «${p.name}» добавлен · ${qty} шт`);
   };
 
@@ -176,6 +179,7 @@ function ProductPage() {
           <div className="mt-6 grid gap-8 md:mt-10 md:grid-cols-2 md:gap-12">
             <ProductGallery
               baseImage={product.image}
+              photos={detail.photos}
               name={product.name}
               badges={product.badges}
             />

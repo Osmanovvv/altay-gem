@@ -2,25 +2,23 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ProductGalleryProps {
-  baseImage: string; // CSS gradient
+  baseImage: string; // CSS-фон: фото поверх градиента либо градиент (фолбэк)
+  /** Фото товара из админки (до 5, ТЗ 6.4); пусто — показываем один фолбэк. */
+  photos?: string[];
   name: string;
   badges?: string[];
 }
 
-// Derive 4 alternate variants from the same gradient by overlaying tinted layers.
-function buildVariants(base: string) {
-  const overlays = [
-    "",
-    "linear-gradient(135deg, rgba(255,255,255,0.18), rgba(0,0,0,0.05))",
-    "linear-gradient(225deg, rgba(0,0,0,0.25), rgba(255,255,255,0.0))",
-    "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent 60%)",
-    "linear-gradient(45deg, rgba(31,26,14,0.25), rgba(255,255,255,0.0))",
-  ];
-  return overlays.map((o) => (o ? `${o}, ${base}` : base));
-}
-
-export function ProductGallery({ baseImage, name, badges = [] }: ProductGalleryProps) {
-  const variants = buildVariants(baseImage);
+export function ProductGallery({
+  baseImage,
+  photos = [],
+  name,
+  badges = [],
+}: ProductGalleryProps) {
+  // Каждое фото рисуем поверх фолбэка (градиента), пока файл не загрузился
+  const variants = photos.length
+    ? photos.map((p) => `url("${p}") center/cover no-repeat, ${baseImage}`)
+    : [baseImage];
   const [active, setActive] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [pos, setPos] = useState({ x: 50, y: 50 });
@@ -106,6 +104,7 @@ export function ProductGallery({ baseImage, name, badges = [] }: ProductGalleryP
         )}
       </div>
 
+      {variants.length > 1 && (
       <div
         className="grid gap-2"
         style={{ gridTemplateColumns: `repeat(${variants.length}, minmax(0,1fr))` }}
@@ -131,6 +130,7 @@ export function ProductGallery({ baseImage, name, badges = [] }: ProductGalleryP
           />
         ))}
       </div>
+      )}
     </div>
   );
 }
