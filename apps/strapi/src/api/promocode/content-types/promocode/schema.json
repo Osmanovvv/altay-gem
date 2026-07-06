@@ -1,0 +1,53 @@
+{
+  "kind": "collectionType",
+  "collectionName": "promocodes",
+  "info": {
+    "singularName": "promocode",
+    "pluralName": "promocodes",
+    "displayName": "Промокод",
+    "description": "Валидация — только на бэкенде (ТЗ 8.3); лимит применений считается по журналу бэкенда"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "discountType": {
+      "type": "enumeration",
+      "enum": [
+        "percent"
+      ],
+      "default": "percent",
+      "required": true
+    },
+    "discountPercent": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "max": 100
+    },
+    "categoryRestriction": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::category.category"
+    },
+    "validFrom": {
+      "type": "datetime"
+    },
+    "validTo": {
+      "type": "datetime"
+    },
+    "usageLimit": {
+      "type": "integer",
+      "min": 1
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

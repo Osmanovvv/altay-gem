@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_site_social_links",
+  "info": {
+    "displayName": "Соцсеть"
+  },
+  "attributes": {
+    "label": {
+      "type": "string",
+      "required": true
+    },
+    "url": {
+      "type": "string",
+      "required": true
+    }
+  }
+}

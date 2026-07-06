@@ -1,0 +1,53 @@
+{
+  "kind": "singleType",
+  "collectionName": "site_settings",
+  "info": {
+    "singularName": "site-setting",
+    "pluralName": "site-settings",
+    "displayName": "Тексты и настройки сайта",
+    "description": "Секции главной, контакты, точки, соцсети, реквизиты, строка доверия (ТЗ 7.2)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "apiarySection": {
+      "type": "component",
+      "repeatable": false,
+      "component": "site.text-section"
+    },
+    "historySection": {
+      "type": "component",
+      "repeatable": false,
+      "component": "site.text-section"
+    },
+    "advantages": {
+      "type": "component",
+      "repeatable": true,
+      "component": "site.advantage"
+    },
+    "contacts": {
+      "type": "component",
+      "repeatable": false,
+      "component": "site.contacts"
+    },
+    "storePoints": {
+      "type": "component",
+      "repeatable": true,
+      "component": "site.store-point"
+    },
+    "socialLinks": {
+      "type": "component",
+      "repeatable": true,
+      "component": "site.social-link"
+    },
+    "requisites": {
+      "type": "text"
+    },
+    "trust": {
+      "type": "component",
+      "repeatable": false,
+      "component": "site.trust-line"
+    }
+  }
+}

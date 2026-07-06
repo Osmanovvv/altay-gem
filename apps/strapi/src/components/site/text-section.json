@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_site_text_sections",
+  "info": {
+    "displayName": "Текстовая секция"
+  },
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "text": {
+      "type": "richtext"
+    }
+  }
+}

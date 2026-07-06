@@ -1,0 +1,30 @@
+{
+  "kind": "singleType",
+  "collectionName": "delivery_tariffs",
+  "info": {
+    "singularName": "delivery-tariff",
+    "pluralName": "delivery-tariffs",
+    "displayName": "Тарифы доставки",
+    "description": "Курьер НСК, порог бесплатной, сетка по весу для РФ (ТЗ 7.2, 12)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "courierNskPriceRub": {
+      "type": "decimal",
+      "required": true
+    },
+    "freeDeliveryThresholdRub": {
+      "type": "decimal"
+    },
+    "russiaWeightTiers": {
+      "type": "component",
+      "repeatable": true,
+      "component": "delivery.weight-tier"
+    },
+    "termsText": {
+      "type": "richtext"
+    }
+  }
+}

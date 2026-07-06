@@ -45,6 +45,22 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
+  strapi:
+    name: strapi (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/strapi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+
   frontend:
     name: frontend (build)
     runs-on: ubuntu-latest

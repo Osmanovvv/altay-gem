@@ -1,0 +1,23 @@
+{
+  "collectionName": "components_product_characteristics",
+  "info": {
+    "displayName": "Характеристики товара"
+  },
+  "attributes": {
+    "weightVolume": {
+      "type": "string"
+    },
+    "composition": {
+      "type": "text"
+    },
+    "manufacturer": {
+      "type": "string"
+    },
+    "shelfLife": {
+      "type": "string"
+    },
+    "storage": {
+      "type": "string"
+    }
+  }
+}

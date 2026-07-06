@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_category_subcategories",
+  "info": {
+    "displayName": "Подкатегория"
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "sortOrder": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}

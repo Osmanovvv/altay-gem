@@ -1,0 +1,12 @@
+{
+  "collectionName": "components_promo_conditions",
+  "info": {
+    "displayName": "Условие акции"
+  },
+  "attributes": {
+    "text": {
+      "type": "string",
+      "required": true
+    }
+  }
+}

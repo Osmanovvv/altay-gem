@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_site_store_points",
+  "info": {
+    "displayName": "Точка (магазин)"
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "address": {
+      "type": "string",
+      "required": true
+    },
+    "hours": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "kind": "collectionType",
+  "collectionName": "products",
+  "info": {
+    "singularName": "product",
+    "pluralName": "products",
+    "displayName": "Товар (обогащение)",
+    "description": "Витринные данные товара; номенклатура/цены/остатки — в Эвоторе (ТЗ 7.2, 7.3)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "adminName": {
+      "type": "string",
+      "required": true
+    },
+    "evotorUuid": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "adminName",
+      "required": true
+    },
+    "visible": {
+      "type": "boolean",
+      "default": false
+    },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "products"
+    },
+    "subcategory": {
+      "type": "string"
+    },
+    "photos": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "shortDescription": {
+      "type": "text"
+    },
+    "fullDescription": {
+      "type": "richtext"
+    },
+    "characteristics": {
+      "type": "component",
+      "repeatable": false,
+      "component": "product.characteristics"
+    },
+    "isHit": {
+      "type": "boolean",
+      "default": false
+    },
+    "isNew": {
+      "type": "boolean",
+      "default": false
+    },
+    "isPerishable": {
+      "type": "boolean",
+      "default": false
+    },
+    "oldPriceRub": {
+      "type": "decimal"
+    },
+    "portionMassG": {
+      "type": "integer",
+      "default": 100,
+      "min": 1
+    },
+    "deliveryWeightG": {
+      "type": "integer",
+      "min": 0
+    },
+    "heroProduct": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

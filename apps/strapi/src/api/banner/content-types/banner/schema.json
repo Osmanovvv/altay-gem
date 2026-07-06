@@ -1,0 +1,60 @@
+{
+  "kind": "collectionType",
+  "collectionName": "banners",
+  "info": {
+    "singularName": "banner",
+    "pluralName": "banners",
+    "displayName": "Баннер главной",
+    "description": "Промо-карусель главной (ТЗ 6.2 п.7, 7.2)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "badge": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "buttonText": {
+      "type": "string"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ],
+      "required": true
+    },
+    "linkPromo": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::promo.promo"
+    },
+    "linkCategory": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::category.category"
+    },
+    "sortOrder": {
+      "type": "integer",
+      "default": 0
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "showFrom": {
+      "type": "datetime"
+    },
+    "showTo": {
+      "type": "datetime"
+    }
+  }
+}

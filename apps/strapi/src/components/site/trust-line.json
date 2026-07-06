@@ -1,0 +1,17 @@
+{
+  "collectionName": "components_site_trust_lines",
+  "info": {
+    "displayName": "Строка доверия (рейтинги)"
+  },
+  "attributes": {
+    "yandexRating": {
+      "type": "decimal"
+    },
+    "gisRating": {
+      "type": "decimal"
+    },
+    "note": {
+      "type": "string"
+    }
+  }
+}

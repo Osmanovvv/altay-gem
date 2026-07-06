@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_site_contacts",
+  "info": {
+    "displayName": "Контакты"
+  },
+  "attributes": {
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "email"
+    }
+  }
+}

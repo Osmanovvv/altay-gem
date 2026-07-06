@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_site_advantages",
+  "info": {
+    "displayName": "Карточка преимущества"
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "text": {
+      "type": "text"
+    }
+  }
+}

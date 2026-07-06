@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "reviews",
+  "info": {
+    "singularName": "review",
+    "pluralName": "reviews",
+    "displayName": "Отзыв",
+    "description": "Ручные отзывы 2ГИС и др.; Яндекс — виджетом (ТЗ 6.9)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "author": {
+      "type": "string",
+      "required": true
+    },
+    "date": {
+      "type": "date",
+      "required": true
+    },
+    "rating": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "max": 5
+    },
+    "text": {
+      "type": "text",
+      "required": true
+    },
+    "source": {
+      "type": "enumeration",
+      "enum": [
+        "dgis",
+        "yandex",
+        "other"
+      ],
+      "default": "dgis",
+      "required": true
+    },
+    "visible": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_delivery_weight_tiers",
+  "info": {
+    "displayName": "Тариф по весу (до N грамм)"
+  },
+  "attributes": {
+    "weightUpToG": {
+      "type": "integer",
+      "required": true
+    },
+    "priceRub": {
+      "type": "decimal",
+      "required": true
+    }
+  }
+}
