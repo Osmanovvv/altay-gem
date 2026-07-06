@@ -9,6 +9,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { validateEnv } from './config/env';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
+import { OrdersModule } from './orders/orders.module';
 import { PromocodesModule } from './promocodes/promocodes.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { PromocodesModule } from './promocodes/promocodes.module';
     CacheModule,
     CatalogModule,
     PromocodesModule,
+    OrdersModule,
     LoggerModule.forRoot({
       pinoHttp: {
         genReqId: (req: IncomingMessage) =>

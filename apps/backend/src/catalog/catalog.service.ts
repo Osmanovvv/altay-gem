@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { CacheService } from '../cache/cache.service';
 import { DB, type Database } from '../db/database.module';
-import { evotorProducts } from '../db/schema';
+import { evotorProducts, stockReservations } from '../db/schema';
 import {
   StrapiProduct,
   StrapiService,
@@ -47,8 +47,26 @@ interface ReplicaRow {
   allowToSell: boolean;
 }
 
+/** Служебные данные товара для оформления заказа (наружу не отдаются). */
+export interface ProductInternal {
+  slug: string;
+  evotorUuid: string; // запись «основного» магазина
+  storeId: string;
+  matchKey: string;
+  measure: string;
+  portionMassG: number | null;
+  deliveryWeightG: number | null;
+  isPerishable: boolean;
+  priceRub: number;
+  name: string;
+  categorySlug: string | null;
+  isMarked: boolean;
+}
+
 const CACHE_KEY = 'catalog:enriched:v1';
 const CACHE_TTL_S = 60;
+/** Вес по умолчанию для расчёта доставки, если контентщик не заполнил, г. */
+const FALLBACK_UNIT_WEIGHT_G = 500;
 
 /**
  * Каталог = реплика Эвотора (цены/остатки) + обогащение Strapi (витрина).
@@ -68,10 +86,27 @@ export class CatalogService {
 
   /** Полный обогащённый список видимых товаров (кешируется). */
   async enrichedProducts(): Promise<ProductCard[]> {
-    const cached = await this.cache.get<ProductCard[]>(CACHE_KEY);
-    if (cached) return cached;
+    return (await this.buildAll()).cards;
+  }
 
-    const [strapiProducts, replica] = await Promise.all([
+  /** Служебная карта slug → данные Эвотора (для заказов; не кешируется наружу). */
+  async internalBySlug(): Promise<Map<string, ProductInternal>> {
+    return (await this.buildAll()).internal;
+  }
+
+  private async buildAll(): Promise<{
+    cards: ProductCard[];
+    internal: Map<string, ProductInternal>;
+  }> {
+    const cached = await this.cache.get<{
+      cards: ProductCard[];
+      internal: Array<[string, ProductInternal]>;
+    }>(CACHE_KEY);
+    if (cached) {
+      return { cards: cached.cards, internal: new Map(cached.internal) };
+    }
+
+    const [strapiProducts, replica, reserved] = await Promise.all([
       this.strapi.products(),
       this.db
         .select({
@@ -82,6 +117,7 @@ export class CatalogService {
           measure: evotorProducts.measure,
           matchKey: evotorProducts.matchKey,
           allowToSell: evotorProducts.allowToSell,
+          isMarked: evotorProducts.isMarked,
         })
         .from(evotorProducts)
         .where(
@@ -90,19 +126,46 @@ export class CatalogService {
             eq(evotorProducts.allowToSell, true),
           ),
         ),
+      // активные резервы уменьшают доступный остаток немедленно (ТЗ 8.2)
+      this.db
+        .select({
+          storeId: stockReservations.storeId,
+          evotorUuid: stockReservations.evotorUuid,
+          qty: sql<string>`sum(${stockReservations.quantity})`,
+        })
+        .from(stockReservations)
+        .where(
+          and(
+            eq(stockReservations.status, 'active'),
+            or(
+              isNull(stockReservations.expiresAt),
+              gt(stockReservations.expiresAt, sql`now()`),
+            ),
+          ),
+        )
+        .groupBy(stockReservations.storeId, stockReservations.evotorUuid),
     ]);
 
-    const byUuid = new Map<string, ReplicaRow>();
+    const reservedByKey = new Map<string, number>();
+    for (const r of reserved) {
+      reservedByKey.set(`${r.storeId}|${r.evotorUuid}`, Number(r.qty));
+    }
+
+    const byUuid = new Map<string, ReplicaRow & { isMarked: boolean }>();
     const qtyByMatchKey = new Map<string, number>();
     for (const row of replica) {
       byUuid.set(row.evotorUuid, row);
+      const available =
+        Number(row.quantity) -
+        (reservedByKey.get(`${row.storeId}|${row.evotorUuid}`) ?? 0);
       qtyByMatchKey.set(
         row.matchKey,
-        (qtyByMatchKey.get(row.matchKey) ?? 0) + Number(row.quantity),
+        (qtyByMatchKey.get(row.matchKey) ?? 0) + Math.max(available, 0),
       );
     }
 
     const cards: ProductCard[] = [];
+    const internal = new Map<string, ProductInternal>();
     for (const sp of strapiProducts) {
       const rep = byUuid.get(sp.evotorUuid);
       if (!rep) {
@@ -111,10 +174,44 @@ export class CatalogService {
         );
         continue;
       }
-      cards.push(this.toCard(sp, rep, qtyByMatchKey.get(rep.matchKey) ?? 0));
+      const card = this.toCard(sp, rep, qtyByMatchKey.get(rep.matchKey) ?? 0);
+      cards.push(card);
+      internal.set(sp.slug, {
+        slug: sp.slug,
+        evotorUuid: rep.evotorUuid,
+        storeId: rep.storeId,
+        matchKey: rep.matchKey,
+        measure: rep.measure,
+        portionMassG: card.portionMassG,
+        deliveryWeightG: sp.deliveryWeightG ?? null,
+        isPerishable: sp.isPerishable,
+        priceRub: card.priceRub,
+        name: sp.adminName,
+        categorySlug: sp.category?.slug ?? null,
+        isMarked: rep.isMarked,
+      });
     }
-    await this.cache.set(CACHE_KEY, cards, CACHE_TTL_S);
-    return cards;
+    await this.cache.set(
+      CACHE_KEY,
+      { cards, internal: [...internal.entries()] },
+      CACHE_TTL_S,
+    );
+    return { cards, internal };
+  }
+
+  /** Сброс кеша каталога (создание заказа, события Эвотора/Strapi). */
+  async invalidate(): Promise<void> {
+    await this.cache.invalidatePrefix('catalog:');
+  }
+
+  /** Вес единицы товара для расчёта доставки, г. */
+  unitWeightG(p: ProductInternal): number {
+    if (p.measure === 'кг') return p.portionMassG ?? 100;
+    if (p.deliveryWeightG) return p.deliveryWeightG;
+    this.log.warn(
+      `у товара «${p.name}» не задан вес для доставки — использую ${FALLBACK_UNIT_WEIGHT_G} г`,
+    );
+    return FALLBACK_UNIT_WEIGHT_G;
   }
 
   private toCard(
