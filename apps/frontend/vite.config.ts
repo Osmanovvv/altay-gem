@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Прод-деплой — bare-metal под Node (PM2), а не Cloudflare: собираем standalone
+  // node-сервер (.output/server/index.mjs). VITE_API_URL задаётся на билд отдельно.
+  nitro: {
+    preset: "node-server",
+  },
 });

@@ -24,7 +24,14 @@ const envSchema = z.object({
 
   // Этап 1 — Strapi
   STRAPI_URL: z.string().optional(),
+  // База ссылок на медиа для браузера (за nginx); без неё в карточки уходит
+  // внутренний хост Strapi и фото не грузятся. Читается через ConfigService,
+  // поэтому ОБЯЗАНА быть в схеме — иначе zod вырежет ключ.
+  STRAPI_PUBLIC_URL: z.string().optional(),
   STRAPI_API_TOKEN: z.string().optional(),
+
+  // Автоотмена неоплаченных заказов (минут); читается через ConfigService.
+  ORDER_PAYMENT_TTL_MINUTES: z.coerce.number().int().positive().optional(),
 
   // Этап 2 — Эвотор
   EVOTOR_API_BASE: z.string().default('https://api.evotor.ru'),
