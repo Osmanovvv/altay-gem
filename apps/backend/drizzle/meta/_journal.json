@@ -8,6 +8,20 @@
       "when": 1783298532218,
       "tag": "0000_stale_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783554772914,
+      "tag": "0001_tiny_doctor_faustus",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784382348486,
+      "tag": "0002_red_mercury",
+      "breakpoints": true
     }
   ]
 }

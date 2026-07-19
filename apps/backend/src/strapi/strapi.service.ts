@@ -4,6 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { bannerIsLive } from './banner-window';
 
 /** Плоские сущности Strapi v5 (attributes уже развёрнуты). */
 export interface StrapiMedia {
@@ -122,11 +123,13 @@ export class StrapiService {
     );
   }
 
-  banners(): Promise<Record<string, unknown>[]> {
-    return this.fetchAll(
+  async banners(): Promise<Record<string, unknown>[]> {
+    const all = await this.fetchAll<Record<string, unknown>>(
       '/api/banners',
       'filters[active][$eq]=true&populate[image]=true&populate[linkPromo]=true&populate[linkCategory]=true&sort=sortOrder',
     );
+    // Окно показа (ТЗ р.7): active — ручной тумблер, даты — расписание.
+    return all.filter((b) => bannerIsLive(b, Date.now()));
   }
 
   promos(): Promise<Record<string, unknown>[]> {

@@ -104,7 +104,7 @@ function ProductPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const category = detail.categoryName
-    ? { name: detail.categoryName }
+    ? { name: detail.categoryName, slug: detail.categorySlug }
     : null;
 
   const CHAR_LABELS: Record<string, string> = {
@@ -165,7 +165,15 @@ function ProductPage() {
                 <ChevronRight size={14} />
                 <button
                   type="button"
-                  onClick={() => navigate({ to: "/catalog" })}
+                  onClick={() =>
+                    // Крошка ведёт в каталог С ФИЛЬТРОМ своей категории (ТЗ 6.5).
+                    navigate({
+                      to: "/catalog",
+                      search: category.slug
+                        ? { category: category.slug }
+                        : {},
+                    })
+                  }
                   className="transition-colors hover:text-[color:var(--color-text)]"
                 >
                   {category.name}

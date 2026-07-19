@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { CacheService } from '../cache/cache.service';
 import { DB, type Database } from '../db/database.module';
@@ -7,6 +8,7 @@ import {
   StrapiProduct,
   StrapiService,
 } from '../strapi/strapi.service';
+import { applyStockBuffer, safePortionMassG } from './stock';
 
 /** Карточка товара для списков (контракт витрины, ТЗ р.9). */
 export interface ProductCard {
@@ -77,12 +79,17 @@ const FALLBACK_UNIT_WEIGHT_G = 500;
 @Injectable()
 export class CatalogService {
   private readonly log = new Logger(CatalogService.name);
+  /** Буфер против двойной продажи: сколько единиц не показываем (ТЗ п.8). */
+  private readonly safetyBuffer: number;
 
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly strapi: StrapiService,
     private readonly cache: CacheService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.safetyBuffer = config.get<number>('EVOTOR_STOCK_SAFETY_BUFFER') ?? 1;
+  }
 
   /** Полный обогащённый список видимых товаров (кешируется). */
   async enrichedProducts(): Promise<ProductCard[]> {
@@ -206,7 +213,7 @@ export class CatalogService {
 
   /** Вес единицы товара для расчёта доставки, г. */
   unitWeightG(p: ProductInternal): number {
-    if (p.measure === 'кг') return p.portionMassG ?? 100;
+    if (p.measure === 'кг') return safePortionMassG(p.portionMassG);
     if (p.deliveryWeightG) return p.deliveryWeightG;
     this.log.warn(
       `у товара «${p.name}» не задан вес для доставки — использую ${FALLBACK_UNIT_WEIGHT_G} г`,
@@ -220,13 +227,15 @@ export class CatalogService {
     totalQty: number,
   ): ProductCard {
     const isWeight = rep.measure === 'кг';
-    const portionG = sp.portionMassG ?? 100;
+    const portionG = safePortionMassG(sp.portionMassG);
     const priceRub = isWeight
       ? Math.round((rep.priceKopecks / 100) * (portionG / 1000))
       : Math.round(rep.priceKopecks / 100);
-    const availableQty = isWeight
+    const rawAvailable = isWeight
       ? Math.floor((totalQty * 1000) / portionG) // порции из суммарных кг
       : Math.floor(totalQty);
+    // Придерживаем последний экземпляр (буфер против двойной продажи, ТЗ п.8).
+    const availableQty = applyStockBuffer(rawAvailable, this.safetyBuffer);
 
     const badges: string[] = [];
     if (sp.isHit) badges.push('Хит');
@@ -270,6 +279,8 @@ export class CatalogService {
       .filter(
         (c) =>
           c.slug !== slug &&
+          // null===null матчил бы ЧУЖИЕ бескатегорийные товары в «похожие».
+          card.categorySlug !== null &&
           c.categorySlug === card.categorySlug &&
           c.inStock,
       )

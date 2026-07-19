@@ -3,11 +3,13 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { CacheModule } from './cache/cache.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { validateEnv } from './config/env';
 import { DatabaseModule } from './db/database.module';
+import { EvotorModule } from './evotor/evotor.module';
 import { HealthController } from './health/health.controller';
 import { OrdersModule } from './orders/orders.module';
 import { PromocodesModule } from './promocodes/promocodes.module';
@@ -25,6 +27,8 @@ import { PromocodesModule } from './promocodes/promocodes.module';
     CatalogModule,
     PromocodesModule,
     OrdersModule,
+    EvotorModule,
+    AdminModule,
     LoggerModule.forRoot({
       pinoHttp: {
         genReqId: (req: IncomingMessage) =>

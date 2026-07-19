@@ -23,8 +23,10 @@ export function Header({ phone: phoneProp }: HeaderProps) {
   const phone = phoneProp ?? settings?.contacts?.phone ?? "+7 (383) 000-00-00";
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const { getCartCount } = useCart();
-  const cartCount = getCartCount();
+  // Бейдж шапки — число ПОЗИЦИЙ корзины (ТЗ 6.1), не сумма количеств:
+  // 3 банки сметаны = «1» на значке. Суммы остаются в корзине/чекауте.
+  const { items } = useCart();
+  const cartCount = items.length;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);

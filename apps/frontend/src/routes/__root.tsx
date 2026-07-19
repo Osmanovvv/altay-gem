@@ -106,8 +106,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Жемчужина Алтая - Натуральные продукты с Алтая" },
       { name: "twitter:description", content: "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/91444fc0-0778-4aae-aca0-a54e71a22a14/id-preview-419ba178--28990cc4-fa88-4811-b0c2-4f1f82acf301.lovable.app-1782814168383.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/91444fc0-0778-4aae-aca0-a54e71a22a14/id-preview-419ba178--28990cc4-fa88-4811-b0c2-4f1f82acf301.lovable.app-1782814168383.png" },
+      // Абсолютный URL обязателен для OG-скрейперов; боевой домен заказчика.
+      { property: "og:image", content: "https://ecomarket-altai.ru/img/stock/u-1464822759023-fed622ff2c3b.jpg" },
+      { name: "twitter:image", content: "https://ecomarket-altai.ru/img/stock/u-1464822759023-fed622ff2c3b.jpg" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

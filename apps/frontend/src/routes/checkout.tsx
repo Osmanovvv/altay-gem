@@ -245,8 +245,15 @@ function CheckoutPage() {
       );
       setDone(true);
       clearCart();
+      // Онлайн-оплата (Этап 3, шаг 1): бэкенд создал платёж и вернул ссылку на
+      // страницу оплаты ЮKassa — уводим туда браузер. Оттуда ЮKassa вернёт
+      // покупателя на /order/{id} (return_url). Если оплаты нет (самовывоз с
+      // оплатой на месте, или эквайер ещё не настроен) — сразу на статус заказа.
+      if (res.paymentUrl) {
+        window.location.href = res.paymentUrl;
+        return;
+      }
       toast.success(`Заказ ${res.orderNumber} оформлен!`);
-      // Онлайн-оплата (этап 3): здесь появится redirect на res.paymentUrl
       void navigate({
         to: "/order/$id",
         params: { id: String(res.id) },
@@ -260,12 +267,18 @@ function CheckoutPage() {
           availableQty?: number;
           actualPriceRub?: number;
         }>;
+        // Покупателю — название товара, а не внутренний id/uuid из ответа API.
+        const nameOf = (id?: string) =>
+          items.find((i) => i.product.id === id)?.product.name ??
+          id ??
+          "товар";
         const lines = details.map((d) => {
           if (d.reason === "out_of_stock")
-            return `«${d.id}»: доступно только ${d.availableQty ?? 0}`;
+            return `«${nameOf(d.id)}»: доступно только ${d.availableQty ?? 0}`;
           if (d.reason === "price_changed")
-            return `«${d.id}»: цена изменилась (теперь ${d.actualPriceRub} ₽)`;
-          if (d.reason === "unknown_item") return `«${d.id}»: товар недоступен`;
+            return `«${nameOf(d.id)}»: цена изменилась (теперь ${d.actualPriceRub} ₽)`;
+          if (d.reason === "unknown_item")
+            return `«${nameOf(d.id)}»: товар недоступен`;
           return d.reason ?? "";
         });
         toast.error(String(err.message), {
@@ -597,7 +610,11 @@ function CheckoutPage() {
                         }}
                       >
                         <Check size={18} />
-                        {submitting ? "Отправляем..." : "Подтвердить заказ"}
+                        {submitting
+                          ? "Отправляем..."
+                          : form.payment === "online"
+                            ? "Оплатить"
+                            : "Оформить заказ"}
                       </button>
                     )}
                   </div>

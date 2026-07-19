@@ -143,6 +143,34 @@ export const evotorProducts = pgTable(
   ],
 );
 
+/**
+ * Установки нашего приложения в ЛК Эвотора (этап 2, ТЗ р.10).
+ * При установке Эвотор POST-ит per-installation токен на наш
+ * /user/token — им авторизуются ВСЕ наши запросы к Cloud API.
+ * Уведомление об удалении переводит установку в active=false.
+ */
+export const evotorInstallations = pgTable('evotor_installations', {
+  /** ID пользователя Эвотора (формат 01-000000000000001) — ключ арендатора. */
+  userId: text('user_id').primaryKey(),
+  /** Токен Облака Эвотор для этой установки (секрет — наружу не отдавать). */
+  token: text('token').notNull(),
+  active: boolean('active').notNull().default(true),
+  installedAt: timestamp('installed_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  uninstalledAt: timestamp('uninstalled_at', { withTimezone: true }),
+  /**
+   * Бизнес-время последнего ПРИМЕНЁННОГО события жизненного цикла
+   * (timestamp из тела ApplicationInstalled/Uninstalled). Guard против
+   * запоздавших ретраев сравнивает именно с ним — updated_at «грязнится»
+   * доставкой токена и для этого не годится.
+   */
+  lastEventAt: timestamp('last_event_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // ---------- заказы ----------
 
 export const orders = pgTable(
@@ -166,6 +194,12 @@ export const orders = pgTable(
     paymentMethod: paymentMethodEnum('payment_method').notNull(),
     /** ID платежа во внешнем платёжном сервисе (этап 3). */
     paymentExternalId: text('payment_external_id'),
+    /**
+     * ID отложенного фискального чека ЮKassa (шаг 4): маркированный заказ
+     * фискализируется ПОСЛЕ сборки (POST /receipts). null — чек ещё не выбит
+     * (или заказ фискализирован при оплате обычным путём).
+     */
+    fiscalReceiptId: text('fiscal_receipt_id'),
 
     /** Применённый промокод (сам промокод живёт в Strapi). */
     promoCode: text('promo_code'),
@@ -217,6 +251,18 @@ export const orderItems = pgTable(
     portionMassG: integer('portion_mass_g'),
     unit: text('unit').notNull().default('шт'),
     isMarked: boolean('is_marked').notNull().default(false),
+    /**
+     * Коды маркировки Data Matrix, отсканированные при сборке (шаг 4) — ровно
+     * по одному НА ЕДИНИЦУ товара (полнота: length == quantity). null — ещё
+     * не сканировали (или товар не маркированный).
+     */
+    markCodes: text('mark_codes').array(),
+    /**
+     * Подпадала ли строка под скидку промокода на момент заказа (категорийный
+     * промокод действует только на свою категорию) — нужно отложенному чеку
+     * (шаг 4), который строится из этого снапшота без каталога.
+     */
+    discountEligible: boolean('discount_eligible').notNull().default(true),
     sumKopecks: integer('sum_kopecks').notNull(),
   },
   (t) => [index('order_items_order_idx').on(t.orderId)],
@@ -319,6 +365,14 @@ export const webhookEvents = pgTable(
     status: webhookStatusEnum('status').notNull().default('received'),
     error: text('error'),
     receivedAt: timestamp('received_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
+     * Время ПЕРВОЙ доставки — неизменяемое (received_at обновляется при
+     * повторном claim-е). Служит меткой свежести для абсолютных остатков
+     * из push-ей без собственного timestamp.
+     */
+    firstReceivedAt: timestamp('first_received_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
     processedAt: timestamp('processed_at', { withTimezone: true }),
