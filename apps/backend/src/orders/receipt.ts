@@ -78,14 +78,92 @@ export interface Receipt {
 export interface PostPaymentReceipt extends Receipt {
   type: 'payment';
   payment_id: string;
-  /** Расчёт: безнал на всю сумму (деньги уже приняты ЮKassa онлайн). */
-  settlements: Array<{ type: 'cashless'; amount: { value: string; currency: 'RUB' } }>;
+  /**
+   * Расчёт: cashless — безнал на всю сумму (ремонтный чек полного расчёта);
+   * prepayment — ЗАЧЁТ ранее пробитой предоплаты (маркированный заказ:
+   * чек предоплаты ушёл при оплате, этот чек передаёт товар с кодами).
+   */
+  settlements: Array<{
+    type: 'cashless' | 'prepayment';
+    amount: { value: string; currency: 'RUB' };
+  }>;
   send: boolean;
   /** Часовой пояс чека (1..11 = UTC+2..UTC+12); обязателен при маркировке. */
   timezone?: number;
 }
 
 const DESCRIPTION_MAX = 128; // лимит ЮKassa на наименование предмета расчёта
+
+/**
+ * Рубли → ЦЕЛЫЕ копейки. `rub * 100` для дробных сумм (тариф 300.03 из
+ * Strapi-decimal, копеечные цены Эвотора) даёт float-хвост
+ * (30002.999999999996): PG отвергает его в integer-колонке (заказ падает
+ * 500-кой), а ЮKassa получает малформный amount. Все денежные точки обязаны
+ * ходить через этот хелпер.
+ */
+export function rubToKopecks(rub: number): number {
+  return Math.round(rub * 100);
+}
+
+/** Лимит ЮKassa: «в чеке не более 80 товаров» (доки, раздел о чеках). */
+export const RECEIPT_MAX_ITEMS = 80;
+
+/**
+ * Превышен лимит позиций чека. Отдельный класс, чтобы вызывающий код мог
+ * отличить его от прочих ошибок сборки: при создании заказа это ЧЁТКИЙ отказ
+ * покупателю («разделите заказ»), а не деградация «платёж без чека».
+ */
+export class ReceiptLimitError extends Error {}
+
+/**
+ * ВЕРХНЯЯ оценка числа позиций будущего чека — для прегейта при создании
+ * заказа, пока коды маркировки ещё не отсканированы и чек не собрать:
+ *  - маркированная строка развернётся по единицам (код на каждую) → quantity;
+ *  - обычная строка при распределении скидки может раздвоиться → 2, иначе 1;
+ *  - платная доставка — отдельная позиция.
+ * Оценка не меньше фактической, поэтому прошедший прегейт заказ гарантированно
+ * фискализируется без превышения лимита и ПОСЛЕ оплаты.
+ */
+export function receiptPositionsUpperBound(
+  lines: Array<{ quantity: number; isMarked?: boolean }>,
+  deliveryKopecks: number,
+  hasDiscount: boolean,
+): number {
+  const linePositions = lines.reduce(
+    (sum, l) => sum + (l.isMarked ? l.quantity : hasDiscount ? 2 : 1),
+    0,
+  );
+  return linePositions + (deliveryKopecks > 0 ? 1 : 0);
+}
+
+/**
+ * Скидка, покрывающая ВСЮ стоимость подпадающих строк, детерминированно
+ * обнуляет каждую из них (allocate раздаёт каждой её полный gross). Если среди
+ * них есть маркированная — чек не собрать НИКОГДА (коды обязаны попасть в
+ * чек, а нулевые позиции ЮKassa отвергает), причём для маркированного заказа
+ * это выяснилось бы только ПОСЛЕ оплаты (отложенная фискализация). Прегейт
+ * для create(): ловим состав «100%-промо + маркированный товар» до денег.
+ */
+export function discountZeroesMarkedLine(
+  lines: Array<{
+    priceKopecks: number;
+    quantity: number;
+    discountEligible?: boolean;
+    isMarked?: boolean;
+  }>,
+  discountKopecks: number,
+): boolean {
+  if (discountKopecks <= 0) return false;
+  const eligible = lines.filter((l) => l.discountEligible !== false);
+  const eligibleGross = eligible.reduce(
+    (s, l) => s + l.priceKopecks * l.quantity,
+    0,
+  );
+  if (eligibleGross <= 0) return false;
+  return (
+    discountKopecks >= eligibleGross && eligible.some((l) => l.isMarked === true)
+  );
+}
 
 /**
  * Распределить `total` (целое) по весам пропорционально, с гарантией точной
@@ -190,7 +268,17 @@ export function buildReceiptItems(input: {
   deliveryKopecks: number;
   config: ReceiptConfig;
 }): ReceiptItem[] {
-  const { lines, discountKopecks, deliveryKopecks, config } = input;
+  const { config } = input;
+  // Копейки обязаны быть ЦЕЛЫМИ: тарифы из Strapi (decimal, напр. 300.03 ₽)
+  // дают float-хвосты (300.03×100 = 30003.000000000004), от которых splitLine
+  // порождает мусорные позиции с дробным quantity — ЮKassa такой чек отвергает
+  // вместе с платежом (находка ревью). Квантуем на входе.
+  const lines = input.lines.map((l) => ({
+    ...l,
+    priceKopecks: Math.round(l.priceKopecks),
+  }));
+  const discountKopecks = Math.round(input.discountKopecks);
+  const deliveryKopecks = Math.round(input.deliveryKopecks);
   // Глобальный дедуп кодов: один Data Matrix не может встретиться в чеке
   // дважды (в т.ч. в разных строках) — ФН/ОФД отклонит такой чек.
   const allCodes = lines.flatMap((l) => (l.isMarked ? (l.markCodes ?? []) : []));
@@ -295,10 +383,21 @@ export function buildReceipt(input: {
     // всё бесплатно/нулевой итог — чек некорректен; платёж на 0 ₽ не создаётся
     throw new Error('Чек без позиций (нулевой итог) — не отправляем');
   }
+  // Лимит ЮKassa «не более 80 товаров в чеке»: маркированные строки
+  // развёрнуты по единицам, поэтому крупный заказ превышает лимит незаметно —
+  // ЮKassa отклонила бы чек (а с ним и платёж/фискализацию).
+  if (items.length > RECEIPT_MAX_ITEMS) {
+    throw new ReceiptLimitError(
+      `Позиций в чеке ${items.length} — больше лимита ЮKassa (${RECEIPT_MAX_ITEMS})`,
+    );
+  }
+  // totalKopecks может прийти с float-хвостом (totalRub×100) — сравниваем
+  // с тем же квантованием, что и позиции (иначе ложный «чек разошёлся»).
+  const totalKopecks = Math.round(input.totalKopecks);
   const sum = itemsSumKopecks(items);
-  if (sum !== input.totalKopecks) {
+  if (sum !== totalKopecks) {
     throw new Error(
-      `Сумма позиций чека ${sum} ≠ сумме платежа ${input.totalKopecks}`,
+      `Сумма позиций чека ${sum} ≠ сумме платежа ${totalKopecks}`,
     );
   }
   return {
@@ -325,6 +424,11 @@ export function buildPostPaymentReceipt(input: {
   config: ReceiptConfig;
   paymentId: string;
   timezone?: number;
+  /**
+   * prepayment — зачёт ранее пробитой предоплаты (маркированный заказ,
+   * дизайн подтверждён песочницей 20.07); по умолчанию cashless.
+   */
+  settlementType?: 'cashless' | 'prepayment';
 }): PostPaymentReceipt {
   const receipt = buildReceipt(input);
   return {
@@ -333,8 +437,11 @@ export function buildPostPaymentReceipt(input: {
     payment_id: input.paymentId,
     settlements: [
       {
-        type: 'cashless',
-        amount: { value: formatAmount(input.totalKopecks), currency: 'RUB' },
+        type: input.settlementType ?? 'cashless',
+        amount: {
+          value: formatAmount(Math.round(input.totalKopecks)),
+          currency: 'RUB',
+        },
       },
     ],
     send: true,

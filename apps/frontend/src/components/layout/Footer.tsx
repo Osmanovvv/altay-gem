@@ -179,7 +179,7 @@ export function Footer() {
         </div>
 
         <div
-          className="mt-12 flex flex-col gap-3 border-t pt-6 md:flex-row md:items-center md:justify-between"
+          className="mt-12 border-t pt-6"
           style={{
             borderColor: "rgba(200,191,168,0.12)",
             fontFamily: "var(--font-body)",
@@ -187,10 +187,19 @@ export function Footer() {
             color: muted,
           }}
         >
-          <span>© Жемчужина Алтая, 2026</span>
-          <a href="#privacy" className="transition-colors hover:text-white" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
-            Политика конфиденциальности
-          </a>
+          {/* Реквизиты продавца (ТЗ 7.2: «реквизиты в подвале сайта»);
+              значение заказчица ведёт в админке — «Тексты и настройки сайта». */}
+          {settings?.requisites?.trim() && (
+            <p className="mb-4" style={{ whiteSpace: "pre-line", lineHeight: 1.6 }}>
+              {settings.requisites.trim()}
+            </p>
+          )}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <span>© Жемчужина Алтая, 2026</span>
+            <a href="#privacy" className="transition-colors hover:text-white" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+              Политика конфиденциальности
+            </a>
+          </div>
         </div>
       </div>
     </footer>

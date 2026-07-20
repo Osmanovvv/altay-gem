@@ -13,6 +13,7 @@ import {
   Matches,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -45,8 +46,21 @@ export class CreateOrderDto {
   })
   phone!: string;
 
-  @IsOptional()
-  @IsEmail({}, { message: 'некорректный e-mail' })
+  /**
+   * При онлайн-оплате ОБЯЗАТЕЛЕН: фискальный чек («Чеки от ЮKassa»)
+   * доставляется только на e-mail, СМС недоступна — без адреса покупатель
+   * не получит чек (54-ФЗ, приёмка Этапа 3). Для оплаты на месте —
+   * опционален (чек бьёт касса магазина); формат проверяем всегда,
+   * если поле прислали.
+   */
+  @ValidateIf(
+    (o: CreateOrderDto) =>
+      o.paymentMethod === 'online' || (o.email !== undefined && o.email !== null),
+  )
+  @IsEmail(
+    {},
+    { message: 'нужен корректный e-mail — на него придёт чек об оплате' },
+  )
   email?: string;
 
   @IsIn(['pickup_leningradskaya', 'pickup_titova', 'courier_nsk', 'russia'])

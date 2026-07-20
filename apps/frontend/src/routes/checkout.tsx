@@ -213,8 +213,23 @@ function CheckoutPage() {
     return Object.keys(next).length === 0;
   }
 
+  // Онлайн-оплата: чек 54-ФЗ («Чеки от ЮKassa») уходит ТОЛЬКО на e-mail,
+  // СМС недоступна — без адреса покупатель не получит чек. Проверяем в момент,
+  // когда способ оплаты уже выбран (шаг 1), и возвращаем на шаг контактов.
+  function requireEmailForOnline(): boolean {
+    if (form.payment !== "online" || form.email.trim()) return false;
+    setErrors((e) => ({
+      ...e,
+      email: "Для онлайн-оплаты укажите e-mail — на него придёт чек",
+    }));
+    toast.error("Для онлайн-оплаты нужен e-mail — на него придёт чек");
+    setStep(0);
+    return true;
+  }
+
   function goNext() {
     if (!validateStep(step)) return;
+    if (step === 1 && requireEmailForOnline()) return;
     setStep((s) => (s < 2 ? ((s + 1) as Step) : s));
   }
   function goBack() {
@@ -223,7 +238,22 @@ function CheckoutPage() {
 
   async function submitOrder(e: FormEvent) {
     e.preventDefault();
-    if (!validateStep(0) || !validateStep(1)) return;
+    // Enter в текстовом поле шагов 0–1 сабмитит форму (implicit submission:
+    // на этих шагах нет submit-кнопки) — заказ создавался бы МИМО шага
+    // «Подтверждение» (находка ревью). Трактуем Enter как «Далее».
+    if (step < 2) {
+      goNext();
+      return;
+    }
+    if (!validateStep(0)) {
+      setStep(0);
+      return;
+    }
+    if (!validateStep(1)) {
+      setStep(1);
+      return;
+    }
+    if (requireEmailForOnline()) return;
     setSubmitting(true);
     try {
       const res = await createOrder(
@@ -376,7 +406,11 @@ function CheckoutPage() {
                         />
                         <Field
                           label="Email"
-                          hint="по желанию"
+                          hint={
+                            form.payment === "online"
+                              ? "сюда придёт чек об оплате"
+                              : "по желанию"
+                          }
                           error={errors.email}
                           input={
                             <input

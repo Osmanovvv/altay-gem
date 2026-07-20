@@ -28,11 +28,19 @@ import {
 import { TelegramService } from '../notifications/telegram.service';
 import { PromocodesService } from '../promocodes/promocodes.service';
 import { idempotencyDecision } from './idempotency';
-import { canTransition } from './order-status';
-import { PaymentService } from './payment.service';
 import {
+  blocksHandoffWithoutOffsetReceipt,
+  canTransition,
+} from './order-status';
+import { PaymentService } from './payment.service';
+import { mergeDuplicateItems } from './merge-items';
+import {
+  RECEIPT_MAX_ITEMS,
   buildPostPaymentReceipt,
   buildReceipt,
+  discountZeroesMarkedLine,
+  receiptPositionsUpperBound,
+  rubToKopecks,
   type Receipt,
   type ReceiptConfig,
 } from './receipt';
@@ -152,6 +160,22 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     this.receiptTimezone = Number(
       config.get('YOOKASSA_RECEIPT_TIMEZONE') ?? 6, // Новосибирск = UTC+7
     );
+    // Страховка конфигурации (находка финального аудита): на магазине ЮKassa
+    // включены «Чеки от ЮKassa» (режим «Принимать платёж»), и платёж БЕЗ чека
+    // там отклоняется «Receipt is missing or illegal». Если эквайринг включён,
+    // а чеки в env выключены/опечатаны — упадут ВСЕ онлайн-оплаты. Кричим при
+    // старте, чтобы это не искали по жалобам покупателей.
+    if (this.payment.enabled && !this.receiptConfig) {
+      this.log.error(
+        'YOOKASSA_SHOP_ID задан, а YOOKASSA_RECEIPT_ENABLED ≠ true: платежи будут уходить БЕЗ чека, и ЮKassa отклонит их (фискализация на магазине включена). Проверьте .env!',
+      );
+      void this.telegram
+        .alert(
+          'Опасная конфигурация оплаты',
+          'Эквайринг ЮKassa включён, а чеки (YOOKASSA_RECEIPT_ENABLED) — нет: онлайн-оплаты будут отклоняться. Проверьте .env.',
+        )
+        .catch(() => undefined);
+    }
   }
 
   // ---------- создание заказа (ТЗ 8.2) ----------
@@ -268,14 +292,18 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    // 2. перевалидация состава по актуальному каталогу
+    // 2. перевалидация состава по актуальному каталогу.
+    // Дубли одного slug сливаем ДО проверок: иначе каждая строка сверялась бы
+    // с остатком независимо (резервы заказа пишутся после цикла) и
+    // [{x,5},{x,5}] при 5 доступных проходил бы — оверселл (находка ревью).
+    const mergedItems = mergeDuplicateItems(dto.items);
     const internal = await this.catalog.internalBySlug();
     const problems: ItemProblem[] = [];
     const lines: Array<{
       p: ProductInternal;
       quantity: number;
     }> = [];
-    for (const item of dto.items) {
+    for (const item of mergedItems) {
       const p = internal.get(item.id);
       if (!p) {
         problems.push({ id: item.id, reason: 'unknown_item' });
@@ -306,7 +334,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // чека: скидку распределяем только по подпадающим строкам.
     let promoCategorySlug: string | null = null;
     if (dto.promoCode?.trim()) {
-      const promo = await this.promocodes.validate(dto.promoCode, dto.items);
+      const promo = await this.promocodes.validate(dto.promoCode, mergedItems);
       if (!promo.valid) {
         throw new BadRequestException({
           code: 'PROMO_INVALID',
@@ -437,6 +465,49 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       // 0 ₽ (100%-скидка + самовывоз) ЮKassa не примет — ведём его как обычный
       // (new), без ссылки на оплату и без автоотмены по TTL.
       const needsPayment = isOnline && totalRub > 0;
+      // Лимит «Чеков от ЮKassa» — не более 80 позиций в чеке. Маркированные
+      // строки разворачиваются по единицам (свой код на каждую), поэтому
+      // проверяем ВЕРХНЮЮ оценку будущих позиций ДО создания заказа: для
+      // маркированного чек уходит ПОСЛЕ оплаты, и превышение там означало бы
+      // «деньги приняты, а фискализация невозможна».
+      if (needsPayment && this.receiptConfig) {
+        const positions = receiptPositionsUpperBound(
+          lines.map((l) => ({
+            quantity: l.quantity,
+            isMarked: l.p.isMarked,
+          })),
+          rubToKopecks(deliveryRub),
+          discountRub > 0,
+        );
+        if (positions > RECEIPT_MAX_ITEMS) {
+          throw new BadRequestException({
+            code: 'RECEIPT_TOO_MANY_POSITIONS',
+            message: `В заказе слишком много позиций для одного фискального чека (лимит ${RECEIPT_MAX_ITEMS}). Пожалуйста, разделите заказ на несколько.`,
+          });
+        }
+        // Находка ревью: 100%-промо, покрывающее всю стоимость подпадающих
+        // строк, обнуляет их; маркированную строку с нулём в чек собрать
+        // нельзя НИКОГДА — а для маркированного заказа (отложенный чек) это
+        // вскрылось бы уже ПОСЛЕ оплаты. Отказываем до денег.
+        const zeroesMarked = discountZeroesMarkedLine(
+          lines.map((l) => ({
+            priceKopecks: rubToKopecks(l.p.priceRub),
+            quantity: l.quantity,
+            discountEligible:
+              promoCategorySlug === null ||
+              l.p.categorySlug === promoCategorySlug,
+            isMarked: l.p.isMarked,
+          })),
+          rubToKopecks(discountRub),
+        );
+        if (zeroesMarked) {
+          throw new BadRequestException({
+            code: 'PROMO_ZEROES_MARKED_LINE',
+            message:
+              'Промокод обнуляет стоимость маркированного товара — фискальный чек с таким составом собрать нельзя. Уберите промокод или маркированный товар из корзины.',
+          });
+        }
+      }
       const [order] = await tx
         .insert(orders)
         .values({
@@ -447,12 +518,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           customerEmail: dto.email?.trim() || null,
           deliveryMethod: dto.deliveryMethod,
           deliveryAddress: dto.deliveryAddress?.trim() || null,
-          deliveryCostKopecks: deliveryRub * 100,
+          deliveryCostKopecks: rubToKopecks(deliveryRub),
           paymentMethod: dto.paymentMethod,
           promoCode,
-          promoDiscountKopecks: discountRub * 100,
-          itemsSubtotalKopecks: subtotalRub * 100,
-          totalKopecks: totalRub * 100,
+          promoDiscountKopecks: rubToKopecks(discountRub),
+          itemsSubtotalKopecks: rubToKopecks(subtotalRub),
+          totalKopecks: rubToKopecks(totalRub),
           source,
           comment: dto.comment?.trim() || null,
         })
@@ -470,7 +541,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           storeId: reservations.find((r) => r.evotorUuid)?.storeId ?? p.storeId,
           evotorUuid: p.evotorUuid,
           name: p.name,
-          priceKopecks: p.priceRub * 100,
+          priceKopecks: rubToKopecks(p.priceRub),
           quantity,
           portionMassG:
             p.measure === 'кг' ? safePortionMassG(p.portionMassG) : null,
@@ -506,7 +577,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         await tx.insert(promocodeUsages).values({
           code: promoCode,
           orderId: order.id,
-          discountKopecks: discountRub * 100,
+          discountKopecks: rubToKopecks(discountRub),
         });
       }
 
@@ -531,7 +602,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       const payment = await this.payment.createPayment({
         orderId: response.id,
         orderNumber: response.orderNumber,
-        amountKopecks: response.totals.totalRub * 100,
+        amountKopecks: rubToKopecks(response.totals.totalRub),
         returnUrl: `${this.siteUrl}/order/${response.id}?token=${response.accessToken}`,
         customerEmail: dto.email?.trim() || null,
         receipt: this.buildOrderReceipt(
@@ -1092,6 +1163,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           config: this.receiptConfig,
           paymentId: order.paymentExternalId,
           timezone: this.receiptTimezone,
+          // Маркированный заказ: при оплате ушёл чек ПРЕДОПЛАТЫ (без кодов),
+          // этот чек — ЗАЧЁТ предоплаты с кодами при передаче товара
+          // (54-ФЗ; подтверждено песочницей 20.07). Ремонтный чек
+          // немаркированного — обычный безнал.
+          settlementType: items.some((i) => i.isMarked)
+            ? 'prepayment'
+            : 'cashless',
         });
       } catch (err) {
         await release();
@@ -1213,6 +1291,43 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         code: 'ORDER_TRANSITION_FORBIDDEN',
         message: `Переход «${cur.status}» → «${status}» недопустим`,
       });
+    }
+    // Гейт 54-ФЗ/«Честный знак» (находка финального аудита): маркированный
+    // онлайн-оплаченный заказ нельзя объявить готовым к выдаче/переданным в
+    // доставку, пока не выбит чек ЗАЧЁТА с кодами — иначе товар уйдёт
+    // покупателю без фискализации передачи. Офлайн-оплату и немаркированные
+    // не трогаем (см. blocksHandoffWithoutOffsetReceipt).
+    if (status === 'ready_for_pickup' || status === 'shipped') {
+      const [o] = await this.db
+        .select({
+          paymentExternalId: orders.paymentExternalId,
+          fiscalReceiptId: orders.fiscalReceiptId,
+        })
+        .from(orders)
+        .where(eq(orders.id, id));
+      const [markedRow] = await this.db
+        .select({ id: orderItems.id })
+        .from(orderItems)
+        .where(
+          and(eq(orderItems.orderId, id), eq(orderItems.isMarked, true)),
+        )
+        .limit(1);
+      // «pending:<маркер>» — захват фискализации, чека ещё нет.
+      const fiscalized =
+        !!o?.fiscalReceiptId && !o.fiscalReceiptId.startsWith('pending:');
+      if (
+        blocksHandoffWithoutOffsetReceipt(status, {
+          hasMarkedItems: !!markedRow,
+          isOnlinePaid: !!o?.paymentExternalId,
+          fiscalized,
+        })
+      ) {
+        throw new ConflictException({
+          code: 'ORDER_NOT_FISCALIZED',
+          message:
+            'Маркированный заказ: сначала отсканируйте коды и выбейте чек (кнопка «Фискализировать»), потом выдача',
+        });
+      }
     }
     // check-then-act ДОЛЖЕН быть атомарным: статус читался вне транзакции, и до
     // записи его мог сменить параллельный процесс (вебхук оплаты, автоотмена).
@@ -1505,20 +1620,48 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     discountCategorySlug: string | null,
   ): Receipt | null {
     if (!this.receiptConfig) return null;
-    // Маркированный заказ НЕ фискализируем в момент оплаты: кодов «Честного
-    // знака» ещё нет — их сканируют при сборке (ТЗ р.11). Чек уйдёт отдельно
-    // (POST /receipts) после сборки — см. fiscalizeOrder (шаг 4).
+    // Маркированный заказ: кодов «Честного знака» ещё нет (сканируют при
+    // сборке, ТЗ р.11), но чек в момент оплаты ОБЯЗАТЕЛЕН — и по 54-ФЗ
+    // (деньги получены до передачи товара = предоплата), и по ЮKassa
+    // (режим «Принимать платёж» отклоняет платёж без чека — песочница 20.07).
+    // Поэтому: сейчас чек ПРЕДОПЛАТЫ (full_prepayment, строки БЕЗ кодов),
+    // а после сборки — чек ЗАЧЁТА с кодами (fiscalizeOrder, prepayment).
     if (lines.some((l) => l.p.isMarked)) {
       this.log.log(
-        'заказ с маркированным товаром — чек отложен до сборки (коды ЧЗ)',
+        'заказ с маркированным товаром — чек предоплаты сейчас, коды ЧЗ уйдут чеком зачёта после сборки',
       );
-      return null;
+      try {
+        return buildReceipt({
+          lines: lines.map((l) => ({
+            description: l.p.name,
+            priceKopecks: rubToKopecks(l.p.priceRub),
+            quantity: l.quantity,
+            discountEligible:
+              discountCategorySlug === null ||
+              l.p.categorySlug === discountCategorySlug,
+            // маркировку НЕ передаём: в чеке предоплаты кодов нет
+          })),
+          discountKopecks: rubToKopecks(discountRub),
+          deliveryKopecks: rubToKopecks(deliveryRub),
+          totalKopecks: rubToKopecks(totalRub),
+          customer: { email: dto.email, phone: normalizePhone(dto.phone) },
+          config: { ...this.receiptConfig, paymentMode: 'full_prepayment' },
+        });
+      } catch (err) {
+        this.log.error(
+          `чек предоплаты не собран (итог ${totalRub}₽): ${(err as Error).message}`,
+        );
+        void this.telegram
+          .alert('Чек предоплаты 54-ФЗ не собран', (err as Error).message)
+          .catch(() => undefined);
+        return null;
+      }
     }
     try {
       return buildReceipt({
         lines: lines.map((l) => ({
           description: l.p.name,
-          priceKopecks: l.p.priceRub * 100,
+          priceKopecks: rubToKopecks(l.p.priceRub),
           quantity: l.quantity,
           // Категорийная скидка действует только на свою категорию (иначе
           // цена чужой позиции в фиск. чеке была бы занижена).
@@ -1526,9 +1669,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             discountCategorySlug === null ||
             l.p.categorySlug === discountCategorySlug,
         })),
-        discountKopecks: discountRub * 100,
-        deliveryKopecks: deliveryRub * 100,
-        totalKopecks: totalRub * 100,
+        discountKopecks: rubToKopecks(discountRub),
+        deliveryKopecks: rubToKopecks(deliveryRub),
+        totalKopecks: rubToKopecks(totalRub),
         // Телефон в чек — нормализованный (+79990001122): ЮKassa не примет
         // маску «+7 (999) 000-11-22» из формы.
         customer: { email: dto.email, phone: normalizePhone(dto.phone) },

@@ -27,3 +27,23 @@ const ALLOWED: Record<OrderStatus, readonly OrderStatus[]> = {
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   return (ALLOWED[from] ?? []).includes(to);
 }
+
+/**
+ * Гейт выдачи маркированного заказа (54-ФЗ/«Честный знак»): онлайн-оплаченный
+ * заказ с маркированными позициями нельзя объявить «готов к выдаче»/«передан
+ * в доставку», пока не выбит чек ЗАЧЁТА с кодами (fiscal_receipt_id) — иначе
+ * товар ушёл бы покупателю без фискализации передачи. Офлайн-оплату не
+ * трогаем: там чек бьёт касса магазина при выдаче. Немаркированные — тоже:
+ * их чек ушёл вместе с оплатой.
+ */
+export function blocksHandoffWithoutOffsetReceipt(
+  to: OrderStatus,
+  order: {
+    hasMarkedItems: boolean;
+    isOnlinePaid: boolean;
+    fiscalized: boolean;
+  },
+): boolean {
+  if (to !== 'ready_for_pickup' && to !== 'shipped') return false;
+  return order.hasMarkedItems && order.isOnlinePaid && !order.fiscalized;
+}
