@@ -79,7 +79,7 @@ export default function OrderDetail({ id, onBack }) {
         <Typography fontWeight="bold">Итого: {order.totals.totalRub.toLocaleString('ru-RU')} ₽</Typography>
       </Box>
 
-      {order.fiscalizationRequired && (
+      {(order.fiscalizationRequired || order.fiscalReceiptId) && (
         <Box paddingTop={4}>
           <Typography variant="beta" tag="h2">Фискализация (маркировка)</Typography>
           {order.fiscalReceiptId
