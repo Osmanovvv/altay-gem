@@ -1,0 +1,6 @@
+{
+  "name": "orders",
+  "version": "0.1.0",
+  "description": "Раздел «Заказы»: сборка и фискализация (прокси к бэкенду)",
+  "strapi": { "kind": "plugin", "name": "orders", "displayName": "Заказы" }
+}
