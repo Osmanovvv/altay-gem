@@ -236,13 +236,29 @@ export class PaymentService {
       throw new ServiceUnavailableException('Не удалось проверить чеки платежа');
     }
     const json = (await res.json()) as { items?: Array<Record<string, unknown>> };
+    // Чек ПРЕДОПЛАТЫ (дизайн B): маркированный заказ при оплате получает чек
+    // с payment_mode full_prepayment (без кодов ЧЗ). Это НЕ фискализация —
+    // если считать его «уже выбитым чеком», fiscalizeOrder не отправит чек
+    // ЗАЧЁТА с кодами, и выбытие в «Честном знаке» не произойдёт. Пропускаем
+    // чеки, у которых ВСЕ позиции — предоплата/аванс (нет полного расчёта).
+    const PREPAY_MODES = ['full_prepayment', 'partial_prepayment', 'advance'];
+    const isPrepaymentOnly = (r: Record<string, unknown>): boolean => {
+      const its = Array.isArray(r.items)
+        ? (r.items as Array<{ payment_mode?: string }>)
+        : [];
+      return (
+        its.length > 0 &&
+        its.every((it) => PREPAY_MODES.includes(it.payment_mode ?? ''))
+      );
+    };
     // Ищем ЖИВОЙ чек прихода: canceled и чеки возврата (refund) не должны
     // маскировать реальный — иначе двойная фискализация или ложный «уже есть».
     const live = (json.items ?? []).find(
       (r) =>
         typeof r.id === 'string' &&
         (r.type === undefined || r.type === 'payment') &&
-        r.status !== 'canceled',
+        r.status !== 'canceled' &&
+        !isPrepaymentOnly(r),
     );
     if (!live) return null;
     return {
