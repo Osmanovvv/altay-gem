@@ -38,6 +38,10 @@ export interface ApiCard {
   portionMassG: number | null;
   inStock: boolean;
   availableQty: number;
+  pickupAvailability?: Array<{
+    point: "pickup_leningradskaya" | "pickup_titova";
+    availableQty: number;
+  }>;
   isPerishable: boolean;
   shortDescription: string | null;
 }
@@ -143,6 +147,14 @@ export interface ApiDeliveryQuote {
   totalRub: number;
   weightG: number;
   freeDeliveryThresholdRub: number | null;
+  stockProblems?: Array<{
+    id: string;
+    availableQty: number;
+    otherPickup?: {
+      point: "pickup_leningradskaya" | "pickup_titova";
+      availableQty: number;
+    };
+  }>;
 }
 
 export interface ApiPromoValidation {

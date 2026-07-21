@@ -198,6 +198,7 @@ function ProductPage() {
                 stock: detail.availableQty,
                 longDesc: detail.fullDescription ?? product.shortDescription,
                 categoryName: detail.categoryName,
+                pickupAvailability: detail.pickupAvailability,
               }}
               onAdd={onAdd}
             />

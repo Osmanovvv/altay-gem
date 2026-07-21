@@ -9,6 +9,10 @@ export interface ProductInfoDetail {
   stock: number;
   longDesc: string;
   categoryName: string | null;
+  pickupAvailability?: Array<{
+    point: "pickup_leningradskaya" | "pickup_titova";
+    availableQty: number;
+  }>;
 }
 
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
@@ -20,6 +24,12 @@ const badgeStyle = (b: string) =>
   (b.startsWith("-")
     ? { bg: "var(--color-error)", color: "#f5efe0" }
     : { bg: "var(--color-accent)", color: "var(--color-bg-dark)" });
+
+// Адреса точек самовывоза (синхронизированы с чекаутом)
+const PICKUP_POINT_ADDRESS: Record<string, string> = {
+  pickup_leningradskaya: "Ленинградская 75/2",
+  pickup_titova: "Титова 32",
+};
 
 
 
@@ -33,6 +43,7 @@ interface ProductInfoProps {
 
 export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
   const stock = product.inStock ? detail.stock : 0;
+  const pickupAvailability = detail.pickupAvailability ?? [];
   const [qty, setQty] = useState(1);
 
   const specs: Record<string, string> = {
@@ -236,6 +247,56 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
           </tbody>
         </table>
       </div>
+
+      {/* Наличие по точкам самовывоза (#37): честно, из тех же данных, что заказ */}
+      {pickupAvailability.length > 0 && (
+        <div
+          className="flex flex-col gap-1.5 rounded-2xl"
+          style={{ backgroundColor: "rgba(31,26,14,0.04)", padding: "12px 16px" }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            Самовывоз
+          </span>
+          {pickupAvailability.map((pa) => (
+            <span
+              key={pa.point}
+              className="inline-flex items-center gap-1.5"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: 13,
+                color:
+                  pa.availableQty > 0
+                    ? "var(--color-text)"
+                    : "var(--color-text-muted)",
+              }}
+            >
+              <MapPin
+                size={14}
+                style={{
+                  color:
+                    pa.availableQty > 0
+                      ? "var(--color-success)"
+                      : "var(--color-text-muted)",
+                  flexShrink: 0,
+                }}
+              />
+              {PICKUP_POINT_ADDRESS[pa.point] ?? pa.point} —{" "}
+              {pa.availableQty > 0
+                ? `${pa.availableQty} ${product.unit}`
+                : "нет в наличии"}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Counter + CTA */}
       <div className="hidden flex-col gap-3 md:flex md:flex-row md:items-center">
