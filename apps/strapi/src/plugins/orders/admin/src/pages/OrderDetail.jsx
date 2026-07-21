@@ -15,7 +15,10 @@ export default function OrderDetail({ id, onBack }) {
 
   const load = useCallback(async () => {
     try { setOrder(await fetchOrder(id)); setError(null); }
-    catch (e) { setError(e?.response?.data?.error || 'Не удалось загрузить заказ'); }
+    catch (e) {
+      const msg = e?.response?.data?.error;
+      setError(typeof msg === 'string' && msg ? msg : 'Не удалось загрузить заказ');
+    }
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -29,7 +32,11 @@ export default function OrderDetail({ id, onBack }) {
   const act = async (fn) => {
     setBusy(true); setError(null);
     try { await fn(); await load(); return true; }
-    catch (e) { setError(e?.response?.data?.error || 'Не получилось — повторите'); return false; }
+    catch (e) {
+      const msg = e?.response?.data?.error;
+      setError(typeof msg === 'string' && msg ? msg : 'Не получилось — повторите');
+      return false;
+    }
     finally { setBusy(false); }
   };
 

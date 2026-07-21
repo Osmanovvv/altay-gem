@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Box, Typography, Table, Thead, Tbody, Tr, Th, Td,
   Badge, SingleSelect, SingleSelectOption, Button, Flex, Loader,
@@ -11,14 +11,19 @@ const PAGE = 50;
 export default function OrdersList({ onOpen }) {
   const [state, setState] = useState({ items: [], total: 0, loading: true, error: null });
   const [filters, setFilters] = useState({ status: '', deliveryMethod: '', offset: 0 });
+  const seq = useRef(0); // защита от out-of-order ответов (поллинг vs ручная загрузка)
 
   const load = useCallback(async (silent = false) => {
+    const my = ++seq.current;
     if (!silent) setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const data = await fetchOrders({ ...filters, limit: PAGE });
+      if (my !== seq.current) return; // пришёл устаревший ответ — новее уже в пути
       setState({ items: data.items, total: data.total, loading: false, error: null });
     } catch (e) {
-      setState((s) => ({ ...s, loading: false, error: e?.response?.data?.error || 'Не удалось загрузить заказы' }));
+      if (my !== seq.current) return;
+      const msg = e?.response?.data?.error;
+      setState((s) => ({ ...s, loading: false, error: typeof msg === 'string' && msg ? msg : 'Не удалось загрузить заказы' }));
     }
   }, [filters]);
 

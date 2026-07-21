@@ -1,8 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box, Typography, TextInput, Button, Flex, Badge } from '@strapi/design-system';
 import { saveMarkCodes } from '../api';
 
-/** Поля кодов Data Matrix: по одному на ЕДИНИЦУ товара. Сканер = клавиатура+Enter. */
+/**
+ * Поля кодов Data Matrix: по одному на ЕДИНИЦУ товара. Сканер = клавиатура+Enter.
+ *
+ * Локальный state кодов сознательно НЕ пересинхронизируется с сервером после
+ * load() родителя: при ошибке сохранения ввод оператора должен уцелеть —
+ * он правит и пересохраняет, а не сканирует всё заново. Гейт фискализации
+ * при этом считается по СЕРВЕРНЫМ данным (order.items[].markCodes), так что
+ * несохранённый локальный ввод кнопку не разблокирует.
+ */
 export default function MarkCodes({ orderId, item, frozen, onSaved, onError }) {
   const [codes, setCodes] = useState(
     Array.from({ length: item.quantity }, (_, i) => item.markCodes?.[i] ?? ''),
@@ -10,15 +18,25 @@ export default function MarkCodes({ orderId, item, frozen, onSaved, onError }) {
   const [saving, setSaving] = useState(false);
   const refs = useRef([]);
 
+  // Сканерный UX: при маунте курсор сразу в первом ПУСТОМ поле — пикай без мыши.
+  useEffect(() => {
+    const i = codes.findIndex((c) => !c.trim());
+    if (i >= 0) refs.current[i]?.focus?.();
+    // только на маунте — codes дальше меняет оператор
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filled = codes.filter((c) => c.trim()).length;
 
   async function persist() {
+    onError(null); // прошлая ошибка не должна висеть над новой попыткой
     setSaving(true);
     try {
       const r = await saveMarkCodes(orderId, item.id, codes.map((c) => c.trim()).filter(Boolean));
       onSaved(r);
     } catch (e) {
-      onError(e?.response?.data?.error || 'Не удалось сохранить коды');
+      const msg = e?.response?.data?.error;
+      onError(typeof msg === 'string' && msg ? msg : 'Не удалось сохранить коды');
     } finally {
       setSaving(false);
     }
