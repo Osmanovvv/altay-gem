@@ -3,12 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { CacheService } from '../cache/cache.service';
 import { DB, type Database } from '../db/database.module';
-import { evotorProducts, stockReservations } from '../db/schema';
+import { evotorProducts, evotorStores, stockReservations } from '../db/schema';
+import {
+  resolvePickupStores,
+  type PickupPoint,
+} from '../orders/pickup-points';
 import {
   StrapiProduct,
   StrapiService,
 } from '../strapi/strapi.service';
-import { applyStockBuffer, safePortionMassG } from './stock';
+import { perStoreAvailability } from './catalog-availability';
+import { safePortionMassG } from './stock';
 
 /** Карточка товара для списков (контракт витрины, ТЗ р.9). */
 export interface ProductCard {
@@ -26,6 +31,8 @@ export interface ProductCard {
   portionMassG: number | null;
   inStock: boolean;
   availableQty: number; // штук или порций доступно (агрегат по 2 магазинам)
+  /** Доступно в каждой точке самовывоза (буферизовано, в единицах продажи). */
+  pickupAvailability: Array<{ point: PickupPoint; availableQty: number }>;
   isPerishable: boolean;
   shortDescription: string | null;
 }
@@ -65,7 +72,7 @@ export interface ProductInternal {
   isMarked: boolean;
 }
 
-const CACHE_KEY = 'catalog:enriched:v1';
+const CACHE_KEY = 'catalog:enriched:v2'; // v2: карточка получила pickupAvailability
 const CACHE_TTL_S = 60;
 /** Вес по умолчанию для расчёта доставки, если контентщик не заполнил, г. */
 const FALLBACK_UNIT_WEIGHT_G = 500;
@@ -113,7 +120,7 @@ export class CatalogService {
       return { cards: cached.cards, internal: new Map(cached.internal) };
     }
 
-    const [strapiProducts, replica, reserved] = await Promise.all([
+    const [strapiProducts, replica, reserved, stores] = await Promise.all([
       this.strapi.products(),
       this.db
         .select({
@@ -151,7 +158,12 @@ export class CatalogService {
           ),
         )
         .groupBy(stockReservations.storeId, stockReservations.evotorUuid),
+      // адреса магазинов → какая точка самовывоза какому storeId соответствует
+      this.db
+        .select({ id: evotorStores.id, address: evotorStores.address })
+        .from(evotorStores),
     ]);
+    const pickupStores = resolvePickupStores(stores);
 
     const reservedByKey = new Map<string, number>();
     for (const r of reserved) {
@@ -159,16 +171,19 @@ export class CatalogService {
     }
 
     const byUuid = new Map<string, ReplicaRow & { isMarked: boolean }>();
-    const qtyByMatchKey = new Map<string, number>();
+    // matchKey → [{storeId, qty}] — остаток за вычетом резервов ПО МАГАЗИНАМ
+    const qtyByMatchKey = new Map<
+      string,
+      Array<{ storeId: string; qty: number }>
+    >();
     for (const row of replica) {
       byUuid.set(row.evotorUuid, row);
       const available =
         Number(row.quantity) -
         (reservedByKey.get(`${row.storeId}|${row.evotorUuid}`) ?? 0);
-      qtyByMatchKey.set(
-        row.matchKey,
-        (qtyByMatchKey.get(row.matchKey) ?? 0) + Math.max(available, 0),
-      );
+      const list = qtyByMatchKey.get(row.matchKey) ?? [];
+      list.push({ storeId: row.storeId, qty: Math.max(available, 0) });
+      qtyByMatchKey.set(row.matchKey, list);
     }
 
     const cards: ProductCard[] = [];
@@ -181,7 +196,12 @@ export class CatalogService {
         );
         continue;
       }
-      const card = this.toCard(sp, rep, qtyByMatchKey.get(rep.matchKey) ?? 0);
+      const card = this.toCard(
+        sp,
+        rep,
+        qtyByMatchKey.get(rep.matchKey) ?? [],
+        pickupStores,
+      );
       cards.push(card);
       internal.set(sp.slug, {
         slug: sp.slug,
@@ -224,18 +244,23 @@ export class CatalogService {
   private toCard(
     sp: StrapiProduct,
     rep: ReplicaRow,
-    totalQty: number,
+    perStoreQty: Array<{ storeId: string; qty: number }>,
+    pickupStores: Array<{ point: PickupPoint; storeId: string }>,
   ): ProductCard {
     const isWeight = rep.measure === 'кг';
     const portionG = safePortionMassG(sp.portionMassG);
     const priceRub = isWeight
       ? Math.round((rep.priceKopecks / 100) * (portionG / 1000))
       : Math.round(rep.priceKopecks / 100);
-    const rawAvailable = isWeight
-      ? Math.floor((totalQty * 1000) / portionG) // порции из суммарных кг
-      : Math.floor(totalQty);
-    // Придерживаем последний экземпляр (буфер против двойной продажи, ТЗ п.8).
-    const availableQty = applyStockBuffer(rawAvailable, this.safetyBuffer);
+    // По-магазинно (порции+буфер на точку), агрегат = сумма — как при заказе.
+    const { totalUnits: availableQty, pickupAvailability } =
+      perStoreAvailability({
+        perStoreQty,
+        measure: rep.measure,
+        portionMassG: sp.portionMassG,
+        buffer: this.safetyBuffer,
+        pickupStores,
+      });
 
     const badges: string[] = [];
     if (sp.isHit) badges.push('Хит');
@@ -260,6 +285,7 @@ export class CatalogService {
       portionMassG: isWeight ? portionG : null,
       inStock: availableQty > 0,
       availableQty,
+      pickupAvailability,
       isPerishable: sp.isPerishable,
       shortDescription: sp.shortDescription ?? null,
     };
