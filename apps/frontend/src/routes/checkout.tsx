@@ -74,6 +74,12 @@ const PICKUP_ADDRESSES: Record<"pickup_leningradskaya" | "pickup_titova", string
   pickup_titova: "г. Новосибирск, ул. Титова 32",
 };
 
+/** Короткие адреса для компактных подсказок (полные — в PICKUP_ADDRESSES). */
+const PICKUP_SHORT: Record<"pickup_leningradskaya" | "pickup_titova", string> = {
+  pickup_leningradskaya: "Ленинградская 75/2",
+  pickup_titova: "Титова 32",
+};
+
 function maskPhone(value: string): string {
   const digits = value.replace(/\D/g, "").replace(/^8/, "7").slice(0, 11);
   if (!digits) return "";
@@ -155,6 +161,9 @@ function CheckoutPage() {
       setQuote(null);
       return;
     }
+    // Сбрасываем прежний расчёт сразу: при смене способа не должны мигать
+    // stockProblems/цена предыдущего способа, в сводке честное «—» (#37).
+    setQuote(null);
     let cancelled = false;
     quoteDelivery({
       deliveryMethod: form.delivery,
@@ -240,7 +249,7 @@ function CheckoutPage() {
   function goNext() {
     if (!validateStep(step)) return;
     if (step === 1 && form.delivery && stockProblems.length > 0) {
-      toast.error("Недостаточно наличия для выбранного способа получения");
+      toast.error("Недостаточно товара для выбранного способа получения");
       return;
     }
     if (step === 1 && requireEmailForOnline()) return;
@@ -268,6 +277,7 @@ function CheckoutPage() {
       return;
     }
     if (stockProblems.length > 0) {
+      toast.error("Недостаточно товара для выбранного способа получения");
       setStep(1);
       return;
     }
@@ -552,12 +562,13 @@ function CheckoutPage() {
                               }}
                             >
                               {isPickup
-                                ? "В этом пункте не хватает наличия"
-                                : "Для доставки не хватает наличия"}
+                                ? "В этом пункте недостаточно товара"
+                                : "Для доставки недостаточно товара"}
                             </span>
                             {stockProblems.map((d) => {
-                              const inCart =
-                                items.find((i) => i.product.id === d.id)?.quantity ?? 0;
+                              const item = items.find((i) => i.product.id === d.id);
+                              const inCart = item?.quantity ?? 0;
+                              const unit = item?.product.unit ?? "шт";
                               return (
                                 <span
                                   key={d.id}
@@ -567,10 +578,10 @@ function CheckoutPage() {
                                     color: "var(--color-text)",
                                   }}
                                 >
-                                  «{nameOf(d.id)}»: доступно {d.availableQty} (в корзине{" "}
-                                  {inCart})
+                                  «{nameOf(d.id)}»: доступно {d.availableQty} {unit} (в
+                                  корзине {inCart})
                                   {d.otherPickup &&
-                                    ` — есть в пункте ${PICKUP_ADDRESSES[d.otherPickup.point]}: ${d.otherPickup.availableQty}`}
+                                    ` — есть в пункте ${PICKUP_SHORT[d.otherPickup.point]}: ${d.otherPickup.availableQty} ${unit}`}
                                 </span>
                               );
                             })}
