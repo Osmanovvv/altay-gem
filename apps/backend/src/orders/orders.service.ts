@@ -34,6 +34,7 @@ import {
 } from './order-status';
 import { PaymentService } from './payment.service';
 import { mergeDuplicateItems } from './merge-items';
+import { isPickupPoint, resolvePickupStores } from './pickup-points';
 import {
   RECEIPT_MAX_ITEMS,
   buildPostPaymentReceipt,
@@ -80,11 +81,6 @@ export interface OrderResponse {
   };
   paymentUrl: string | null; // появится на этапе 3 (Цифровая касса)
 }
-
-const PICKUP_STORE_HINT: Record<string, string> = {
-  pickup_leningradskaya: 'Ленинградская',
-  pickup_titova: 'Титова',
-};
 
 /**
  * Заглушка Idempotency-Key старше этого срока считается брошенной (владелец
@@ -752,17 +748,16 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   private async resolveTargetStore(
     method: DeliveryMethod,
   ): Promise<string | null> {
-    const hint = PICKUP_STORE_HINT[method];
-    if (!hint) return null; // доставка — магазин записи товара
+    if (!isPickupPoint(method)) return null; // доставка — магазин записи товара
     const stores = await this.db.select().from(evotorStores);
-    const store = stores.find((s) => (s.address ?? '').includes(hint));
-    if (!store) {
+    const match = resolvePickupStores(stores).find((m) => m.point === method);
+    if (!match) {
       throw new BadRequestException({
         code: 'PICKUP_POINT_UNKNOWN',
         message: 'Точка самовывоза не настроена',
       });
     }
-    return store.id;
+    return match.storeId;
   }
 
   // ---------- публичный статус (ТЗ р.9) ----------
