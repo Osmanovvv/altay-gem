@@ -123,6 +123,16 @@ function CheckoutPage() {
   const count = getCartCount();
   const isPickup = form.delivery === "pickup_leningradskaya" || form.delivery === "pickup_titova";
 
+  // Мягкая серверная предпроверка остатка по целевому магазину (#37):
+  // предупреждаем на шаге 1, авторитетная проверка остаётся при создании заказа.
+  const stockProblems = quote?.stockProblems ?? [];
+
+  // Покупателю — название товара, а не внутренний id/uuid из ответа API.
+  const nameOf = (id?: string) =>
+    items.find((i) => i.product.id === id)?.product.name ??
+    id ??
+    "товар";
+
   // Наличные/карта "при получении" физически возможны только на самовывозе —
   // для курьера/СДЭК остаётся только онлайн-оплата. Если сменили способ
   // доставки на недоступный для выбранной оплаты — сбрасываем на онлайн.
@@ -229,6 +239,10 @@ function CheckoutPage() {
 
   function goNext() {
     if (!validateStep(step)) return;
+    if (step === 1 && form.delivery && stockProblems.length > 0) {
+      toast.error("Недостаточно наличия для выбранного способа получения");
+      return;
+    }
     if (step === 1 && requireEmailForOnline()) return;
     setStep((s) => (s < 2 ? ((s + 1) as Step) : s));
   }
@@ -250,6 +264,10 @@ function CheckoutPage() {
       return;
     }
     if (!validateStep(1)) {
+      setStep(1);
+      return;
+    }
+    if (stockProblems.length > 0) {
       setStep(1);
       return;
     }
@@ -297,11 +315,6 @@ function CheckoutPage() {
           availableQty?: number;
           actualPriceRub?: number;
         }>;
-        // Покупателю — название товара, а не внутренний id/uuid из ответа API.
-        const nameOf = (id?: string) =>
-          items.find((i) => i.product.id === id)?.product.name ??
-          id ??
-          "товар";
         const lines = details.map((d) => {
           if (d.reason === "out_of_stock")
             return `«${nameOf(d.id)}»: доступно только ${d.availableQty ?? 0}`;
@@ -520,6 +533,59 @@ function CheckoutPage() {
                             }
                           />
                         </div>
+
+                        {form.delivery && stockProblems.length > 0 && (
+                          <div
+                            className="flex flex-col gap-2 rounded-2xl"
+                            style={{
+                              border: "1px solid rgba(192,84,52,0.35)",
+                              backgroundColor: "rgba(192,84,52,0.07)",
+                              padding: "14px 16px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: "var(--font-body)",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "var(--color-error)",
+                              }}
+                            >
+                              {isPickup
+                                ? "В этом пункте не хватает наличия"
+                                : "Для доставки не хватает наличия"}
+                            </span>
+                            {stockProblems.map((d) => {
+                              const inCart =
+                                items.find((i) => i.product.id === d.id)?.quantity ?? 0;
+                              return (
+                                <span
+                                  key={d.id}
+                                  style={{
+                                    fontFamily: "var(--font-body)",
+                                    fontSize: 13,
+                                    color: "var(--color-text)",
+                                  }}
+                                >
+                                  «{nameOf(d.id)}»: доступно {d.availableQty} (в корзине{" "}
+                                  {inCart})
+                                  {d.otherPickup &&
+                                    ` — есть в пункте ${PICKUP_ADDRESSES[d.otherPickup.point]}: ${d.otherPickup.availableQty}`}
+                                </span>
+                              );
+                            })}
+                            <span
+                              style={{
+                                fontFamily: "var(--font-body)",
+                                fontSize: 12,
+                                color: "var(--color-text-muted)",
+                              }}
+                            >
+                              Выберите другой способ получения или уменьшите количество
+                              в корзине.
+                            </span>
+                          </div>
+                        )}
                       </StepCard>
                     )}
 
