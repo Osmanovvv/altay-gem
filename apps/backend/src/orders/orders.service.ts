@@ -14,7 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { CatalogService, ProductInternal } from '../catalog/catalog.service';
-import { applyStockBuffer, safePortionMassG } from '../catalog/stock';
+import { orderableUnits, safePortionMassG } from '../catalog/stock';
 import { DB, type Database } from '../db/database.module';
 import {
   evotorStores,
@@ -449,11 +449,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         const availableUnits = physical - Number(resRow?.reserved ?? 0);
         const isWeight = String(row.measure) === 'кг';
         const portionKg = safePortionMassG(p.portionMassG) / 1000;
-        const rawQty = isWeight
-          ? Math.floor(availableUnits / portionKg)
-          : Math.floor(availableUnits);
-        // Тот же буфер, что и на витрине: придержанный экземпляр заказать нельзя.
-        const availableQty = applyStockBuffer(rawQty, this.safetyBuffer);
+        // Та же математика, что на витрине и в quote (единый источник).
+        const availableQty = orderableUnits({
+          availableQty: availableUnits,
+          measure: String(row.measure),
+          portionMassG: p.portionMassG,
+          buffer: this.safetyBuffer,
+        });
         if (availableQty < quantity) {
           stockProblems.push({
             id: p.slug,

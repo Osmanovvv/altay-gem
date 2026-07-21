@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-import { applyStockBuffer, safePortionMassG } from './stock';
+import { describe, expect, it, test } from 'bun:test';
+import { applyStockBuffer, orderableUnits, safePortionMassG } from './stock';
 
 /**
  * Буфер против двойной продажи (ТЗ п.8, Путь B). Под Путём B мы не пишем
@@ -47,5 +47,80 @@ describe('safePortionMassG', () => {
   });
   it('отрицательная → дефолт 100', () => {
     expect(safePortionMassG(-5)).toBe(100);
+  });
+});
+
+describe('orderableUnits', () => {
+  test('штучный: floor и буфер', () => {
+    expect(
+      orderableUnits({
+        availableQty: 5,
+        measure: 'шт',
+        portionMassG: null,
+        buffer: 1,
+      }),
+    ).toBe(4);
+  });
+
+  test('весовой: порции считаются floor-ом ДО буфера', () => {
+    // 0.95 кг при порции 1000 г = 0 порций (заказать порцию нельзя)
+    expect(
+      orderableUnits({
+        availableQty: 0.95,
+        measure: 'кг',
+        portionMassG: 1000,
+        buffer: 0,
+      }),
+    ).toBe(0);
+    // 1.892 кг / 100 г = 18 порций, буфер 1 → 17 (живой кейс «Сыр Граф»)
+    expect(
+      orderableUnits({
+        availableQty: 1.892,
+        measure: 'кг',
+        portionMassG: 100,
+        buffer: 1,
+      }),
+    ).toBe(17);
+  });
+
+  test('отрицательный/нулевой остаток → 0, не отрицательное', () => {
+    expect(
+      orderableUnits({
+        availableQty: -2,
+        measure: 'шт',
+        portionMassG: null,
+        buffer: 1,
+      }),
+    ).toBe(0);
+    expect(
+      orderableUnits({
+        availableQty: 0,
+        measure: 'шт',
+        portionMassG: null,
+        buffer: 0,
+      }),
+    ).toBe(0);
+  });
+
+  test('битая масса порции (0/null) не даёт Infinity — дефолт 100 г', () => {
+    expect(
+      orderableUnits({
+        availableQty: 1,
+        measure: 'кг',
+        portionMassG: 0,
+        buffer: 0,
+      }),
+    ).toBe(10);
+  });
+
+  test('буфер больше остатка → 0', () => {
+    expect(
+      orderableUnits({
+        availableQty: 2,
+        measure: 'шт',
+        portionMassG: null,
+        buffer: 5,
+      }),
+    ).toBe(0);
   });
 });

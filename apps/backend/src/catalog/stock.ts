@@ -21,3 +21,25 @@ export function applyStockBuffer(sellableQty: number, buffer: number): number {
 export function safePortionMassG(v: number | null | undefined): number {
   return typeof v === 'number' && v > 0 ? v : 100;
 }
+
+/**
+ * Доступно к ЗАКАЗУ в единицах продажи (штуки или порции): floor по порциям
+ * ДО буфера, буфер по-магазинно. Единственный источник этой математики —
+ * используют витрина (карточка/разбивка по точкам), create() и quote:
+ * расхождение «показали 4, а заказать можно 2» исключается конструктивно.
+ */
+export function orderableUnits(input: {
+  /** Физостаток минус активные резервы, в шт или кг. */
+  availableQty: number;
+  measure: string;
+  portionMassG: number | null | undefined;
+  buffer: number;
+}): number {
+  const isWeight = input.measure === 'кг';
+  const raw = isWeight
+    ? Math.floor(
+        input.availableQty / (safePortionMassG(input.portionMassG) / 1000),
+      )
+    : Math.floor(input.availableQty);
+  return applyStockBuffer(raw, input.buffer);
+}
