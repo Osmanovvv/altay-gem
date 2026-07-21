@@ -34,7 +34,12 @@ import {
 } from './order-status';
 import { PaymentService } from './payment.service';
 import { mergeDuplicateItems } from './merge-items';
-import { isPickupPoint, resolvePickupStores } from './pickup-points';
+import {
+  isPickupPoint,
+  otherPickupPoint,
+  resolvePickupStores,
+  type PickupPoint,
+} from './pickup-points';
 import {
   RECEIPT_MAX_ITEMS,
   buildPostPaymentReceipt,
@@ -67,6 +72,13 @@ interface ItemProblem {
   availableQty?: number;
   actualPriceRub?: number;
 }
+
+/** Нехватка остатка в целевом магазине quote (+ подсказка другой точки). */
+type QuoteStockProblem = {
+  id: string;
+  availableQty: number;
+  otherPickup?: { point: PickupPoint; availableQty: number };
+};
 
 export interface OrderResponse {
   id: number;
@@ -721,6 +733,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       unitWeightG: this.catalog.unitWeightG(l.p),
       isPerishable: l.p.isPerishable,
     }));
+    // Мягкая предпроверка остатка ЦЕЛЕВОГО магазина (недочёт #5 ТЗ / #37):
+    // предупреждаем до создания заказа, авторитетная проверка — в create().
+    const stockProblems = await this.quoteStockProblems(
+      dto.deliveryMethod,
+      lines,
+    );
     try {
       const deliveryRub = calcDelivery(
         dto.deliveryMethod,
@@ -738,6 +756,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           0,
         ),
         freeDeliveryThresholdRub: tariffs.freeDeliveryThresholdRub,
+        ...(stockProblems.length ? { stockProblems } : {}),
       };
     } catch (err) {
       if (err instanceof DeliveryNotAvailableError) {
@@ -760,6 +779,82 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       });
     }
     return match.storeId;
+  }
+
+  /**
+   * Доступно к заказу в конкретном магазине (шт/порции) — та же математика,
+   * что в create(), но обычным SELECT без блокировок (для предпроверки quote).
+   */
+  private async storeOrderable(
+    p: ProductInternal,
+    storeId: string,
+  ): Promise<number> {
+    const rows = await this.db.execute(sql`
+      SELECT evotor_uuid, quantity, measure
+      FROM evotor_products
+      WHERE match_key = ${p.matchKey}
+        AND store_id = ${storeId}
+        AND is_archived = false AND allow_to_sell = true
+    `);
+    const row = (rows as unknown as { rows: Array<Record<string, unknown>> })
+      .rows[0];
+    if (!row) return 0;
+    const [resRow] = (
+      (await this.db.execute(sql`
+        SELECT coalesce(sum(quantity), 0) AS reserved
+        FROM stock_reservations
+        WHERE store_id = ${storeId}
+          AND evotor_uuid = ${String(row.evotor_uuid)}
+          AND status = 'active'
+          AND (expires_at IS NULL OR expires_at > now())
+      `)) as unknown as { rows: Array<{ reserved: string }> }
+    ).rows;
+    return orderableUnits({
+      availableQty: Number(row.quantity) - Number(resRow?.reserved ?? 0),
+      measure: String(row.measure),
+      portionMassG: p.portionMassG,
+      buffer: this.safetyBuffer,
+    });
+  }
+
+  /**
+   * Мягкая предпроверка корзины против целевого магазина выбранного способа
+   * (недочёт #5 ТЗ): самовывоз — точка, доставка — магазин записи товара.
+   * Для самовывоза, если ДРУГАЯ точка покрывает количество — подсказываем её.
+   * Не ошибка: фронт показывает предупреждение до создания заказа,
+   * авторитетная проверка остаётся в create().
+   */
+  private async quoteStockProblems(
+    method: DeliveryMethod,
+    lines: Array<{ p: ProductInternal; quantity: number }>,
+  ): Promise<QuoteStockProblem[]> {
+    const targetStoreId = await this.resolveTargetStore(method);
+    const pickupStores = isPickupPoint(method)
+      ? resolvePickupStores(await this.db.select().from(evotorStores))
+      : [];
+    const problems: QuoteStockProblem[] = [];
+    for (const { p, quantity } of lines) {
+      const availableQty = await this.storeOrderable(
+        p,
+        targetStoreId ?? p.storeId,
+      );
+      if (availableQty >= quantity) continue;
+      const problem: QuoteStockProblem = { id: p.slug, availableQty };
+      if (isPickupPoint(method)) {
+        const other = otherPickupPoint(method, pickupStores);
+        if (other) {
+          const otherQty = await this.storeOrderable(p, other.storeId);
+          if (otherQty >= quantity) {
+            problem.otherPickup = {
+              point: other.point,
+              availableQty: otherQty,
+            };
+          }
+        }
+      }
+      problems.push(problem);
+    }
+    return problems;
   }
 
   // ---------- публичный статус (ТЗ р.9) ----------

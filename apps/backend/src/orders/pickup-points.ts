@@ -30,3 +30,11 @@ export function resolvePickupStores(
   }
   return out;
 }
+
+/** Другая (не выбранная) точка самовывоза, если она настроена. */
+export function otherPickupPoint(
+  current: PickupPoint,
+  resolved: Array<{ point: PickupPoint; storeId: string }>,
+): { point: PickupPoint; storeId: string } | null {
+  return resolved.find((r) => r.point !== current) ?? null;
+}

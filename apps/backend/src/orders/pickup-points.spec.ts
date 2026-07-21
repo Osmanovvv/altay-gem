@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   isPickupPoint,
+  otherPickupPoint,
   PICKUP_POINTS,
   resolvePickupStores,
 } from './pickup-points';
@@ -40,5 +41,21 @@ describe('pickup-points', () => {
 
   test('PICKUP_POINTS перечисляет обе точки', () => {
     expect(PICKUP_POINTS).toEqual(['pickup_leningradskaya', 'pickup_titova']);
+  });
+});
+
+describe('otherPickupPoint', () => {
+  const resolved = [
+    { point: 'pickup_leningradskaya' as const, storeId: 'len' },
+    { point: 'pickup_titova' as const, storeId: 'tit' },
+  ];
+  test('для точки возвращает вторую', () => {
+    expect(otherPickupPoint('pickup_titova', resolved)).toEqual({
+      point: 'pickup_leningradskaya',
+      storeId: 'len',
+    });
+  });
+  test('если вторая не настроена — null', () => {
+    expect(otherPickupPoint('pickup_titova', [resolved[1]])).toBeNull();
   });
 });
