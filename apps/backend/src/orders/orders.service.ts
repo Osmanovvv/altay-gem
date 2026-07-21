@@ -686,8 +686,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     items: Array<{ id: string; quantity: number }>;
     promoCode?: string;
   }) {
+    // Дубли одного slug сливаем ДО расчётов — как в create(): иначе
+    // предпроверка остатка сверяла бы каждую строку отдельно и пропустила бы
+    // суммарную нехватку ([{x,3},{x,3}] при 5 доступных). Суммы и промокод от
+    // слияния не меняются (промокод в create() тоже получает слитый состав).
+    const mergedItems = mergeDuplicateItems(dto.items);
     const internal = await this.catalog.internalBySlug();
-    const unknown = dto.items.filter((i) => !internal.get(i.id));
+    const unknown = mergedItems.filter((i) => !internal.get(i.id));
     if (unknown.length) {
       throw new BadRequestException({
         code: 'ORDER_VALIDATION',
@@ -695,7 +700,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         details: unknown.map((i) => ({ id: i.id, reason: 'unknown_item' })),
       });
     }
-    const lines = dto.items.map((i) => ({
+    const lines = mergedItems.map((i) => ({
       p: internal.get(i.id) as ProductInternal,
       quantity: i.quantity,
     }));
@@ -706,7 +711,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
     let discountRub = 0;
     if (dto.promoCode?.trim()) {
-      const promo = await this.promocodes.validate(dto.promoCode, dto.items);
+      const promo = await this.promocodes.validate(dto.promoCode, mergedItems);
       if (!promo.valid) {
         throw new BadRequestException({
           code: 'PROMO_INVALID',
@@ -828,33 +833,51 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     method: DeliveryMethod,
     lines: Array<{ p: ProductInternal; quantity: number }>,
   ): Promise<QuoteStockProblem[]> {
-    const targetStoreId = await this.resolveTargetStore(method);
-    const pickupStores = isPickupPoint(method)
-      ? resolvePickupStores(await this.db.select().from(evotorStores))
-      : [];
-    const problems: QuoteStockProblem[] = [];
-    for (const { p, quantity } of lines) {
-      const availableQty = await this.storeOrderable(
-        p,
-        targetStoreId ?? p.storeId,
+    // Справочник магазинов читаем ОДИН раз: и целевая точка, и «другая»
+    // берутся из одного resolvePickupStores (resolveTargetStore не трогаем —
+    // он остаётся на create()).
+    let targetStoreId: string | null = null;
+    let pickupStores: Array<{ point: PickupPoint; storeId: string }> = [];
+    if (isPickupPoint(method)) {
+      pickupStores = resolvePickupStores(
+        await this.db.select().from(evotorStores),
       );
-      if (availableQty >= quantity) continue;
-      const problem: QuoteStockProblem = { id: p.slug, availableQty };
-      if (isPickupPoint(method)) {
-        const other = otherPickupPoint(method, pickupStores);
-        if (other) {
-          const otherQty = await this.storeOrderable(p, other.storeId);
-          if (otherQty >= quantity) {
-            problem.otherPickup = {
-              point: other.point,
-              availableQty: otherQty,
-            };
+      const match = pickupStores.find((m) => m.point === method);
+      // Наследуем жёсткий PICKUP_POINT_UNKNOWN (как resolveTargetStore в
+      // create): ошибка настройки адресов всплывает уже на quote — осознанно.
+      if (!match) {
+        throw new BadRequestException({
+          code: 'PICKUP_POINT_UNKNOWN',
+          message: 'Точка самовывоза не настроена',
+        });
+      }
+      targetStoreId = match.storeId;
+    }
+    // Строки проверяются параллельно (порядок ответа = порядок строк корзины).
+    const results = await Promise.all(
+      lines.map(async ({ p, quantity }): Promise<QuoteStockProblem | null> => {
+        const availableQty = await this.storeOrderable(
+          p,
+          targetStoreId ?? p.storeId,
+        );
+        if (availableQty >= quantity) return null;
+        const problem: QuoteStockProblem = { id: p.slug, availableQty };
+        if (isPickupPoint(method)) {
+          const other = otherPickupPoint(method, pickupStores);
+          if (other) {
+            const otherQty = await this.storeOrderable(p, other.storeId);
+            if (otherQty >= quantity) {
+              problem.otherPickup = {
+                point: other.point,
+                availableQty: otherQty,
+              };
+            }
           }
         }
-      }
-      problems.push(problem);
-    }
-    return problems;
+        return problem;
+      }),
+    );
+    return results.filter((r): r is QuoteStockProblem => r !== null);
   }
 
   // ---------- публичный статус (ТЗ р.9) ----------

@@ -19,6 +19,8 @@ export function perStoreAvailability(input: {
   pickupAvailability: Array<{ point: PickupPoint; availableQty: number }>;
 } {
   const unitsByStore = new Map<string, number>();
+  // Дубли номенклатуры внутри магазина: каждая строка буферизуется отдельно —
+  // консервативно (create() читает rows[0], меньше обещаем — не перепродадим).
   for (const { storeId, qty } of input.perStoreQty) {
     unitsByStore.set(
       storeId,
