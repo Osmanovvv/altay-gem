@@ -25,7 +25,7 @@ const proxy = (fn) => async (ctx) => {
     ctx.body = await fn(ctx, getClient());
   } catch (e) {
     // Первопричину (ECONNREFUSED и т.п.) — в лог, кассиру — человеческий текст.
-    strapi.log.error(`orders-прокси: ${e.message}${e.cause ? ` (cause: ${e.cause})` : ''}`);
+    strapi.log.error(`orders-прокси: ${e.message}${e.cause ? ` (cause: ${e.cause?.code ?? e.cause})` : ''}`);
     ctx.status = e.status && e.status >= 400 && e.status < 600 ? e.status : 502;
     const text =
       e.status >= 500 && !e.code
@@ -51,9 +51,17 @@ module.exports = {
   controllers: {
     bridge: {
       list: proxy((ctx, c) => {
+        // Санация: дубль ?limit=10&limit=20 приходит массивом — берём первый;
+        // limit/offset пропускаем только целыми, иначе NaN уехал бы в SQL бэкенда.
+        const first = (v) => (Array.isArray(v) ? v[0] : v);
         const q = new URLSearchParams();
-        for (const k of ['status', 'deliveryMethod', 'limit', 'offset']) {
-          if (ctx.query[k]) q.set(k, String(ctx.query[k]));
+        for (const k of ['status', 'deliveryMethod']) {
+          const v = first(ctx.query[k]);
+          if (v) q.set(k, String(v));
+        }
+        for (const k of ['limit', 'offset']) {
+          const v = first(ctx.query[k]);
+          if (v !== undefined && /^\d+$/.test(String(v))) q.set(k, String(v));
         }
         const qs = q.toString();
         return c.request('GET', `/admin/orders${qs ? `?${qs}` : ''}`);

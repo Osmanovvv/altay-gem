@@ -8,8 +8,9 @@ function createBackendClient({ apiUrl, password, timeoutMs = 10000, fetchFn = fe
   let token = null;
   let expiresAt = 0;
 
-  const err = (status, code, message) =>
-    Object.assign(new Error(message), { status, code });
+  // cause — первопричина (ECONNREFUSED и т.п.) для лога; наверх уходит только человеческий текст
+  const err = (status, code, message, cause) =>
+    Object.assign(new Error(message), { status, code, ...(cause !== undefined ? { cause } : {}) });
 
   async function call(method, path, body, auth, callTimeoutMs = timeoutMs) {
     const ctrl = new AbortController();
@@ -40,9 +41,11 @@ function createBackendClient({ apiUrl, password, timeoutMs = 10000, fetchFn = fe
       }
       return json;
     } catch (e) {
-      if (e.name === 'AbortError') throw err(504, 'ORDERS_TIMEOUT', 'Сервер заказов не ответил');
+      if (e.name === 'AbortError')
+        throw err(504, 'ORDERS_TIMEOUT', 'Сервер заказов не ответил', e.cause ?? e);
       // сетевой сбой (ECONNREFUSED, 'fetch failed', обрыв тела) — без сырого текста наверх
-      if (e.status === undefined) throw err(502, 'ORDERS_UNAVAILABLE', 'Сервер заказов недоступен. Повторите');
+      if (e.status === undefined)
+        throw err(502, 'ORDERS_UNAVAILABLE', 'Сервер заказов недоступен. Повторите', e.cause ?? e);
       throw e;
     } finally {
       clearTimeout(t);

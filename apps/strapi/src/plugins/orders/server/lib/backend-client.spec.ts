@@ -101,6 +101,20 @@ describe('backend-client', () => {
     expect(calls.length).toBe(1); // без бесконечного релогина
   });
 
+  it('сетевая ошибка сохраняет первопричину в cause (ECONNREFUSED различим в логе)', async () => {
+    const root = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:3002'), {
+      code: 'ECONNREFUSED',
+    });
+    const fn = async () => {
+      throw new TypeError('fetch failed', { cause: root });
+    };
+    const c = createBackendClient({ ...base, fetchFn: fn as unknown as typeof fetch });
+    const err = await c.request('GET', '/admin/orders').catch((e) => e);
+    expect(err).toMatchObject({ status: 502, code: 'ORDERS_UNAVAILABLE' });
+    expect(err.cause).toBeInstanceOf(Error);
+    expect((err.cause as { code?: string }).code).toBe('ECONNREFUSED');
+  });
+
   it('ошибка бэкенда пробрасывается с кодом и текстом', async () => {
     const { fn } = fakeFetch([
       { status: 200, body: { token: 't', expiresAt: Date.now() + 9e6 } },
