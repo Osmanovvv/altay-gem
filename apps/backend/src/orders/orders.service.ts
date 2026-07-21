@@ -160,6 +160,27 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     this.receiptTimezone = Number(
       config.get('YOOKASSA_RECEIPT_TIMEZONE') ?? 6, // Новосибирск = UTC+7
     );
+    // Страховка конфигурации №2 (находка финального ревью экрана сборки):
+    // идемпотентность фискализации маркированного заказа держится на том, что
+    // чек ЗАЧЁТА отличим от чека ПРЕДОПЛАТЫ по payment_mode. Если payment_mode
+    // в env выставить предоплатным — чек зачёта станет неотличим, и повтор
+    // после потерянного ответа выбьет ВТОРОЙ чек (двойное выбытие в ЧЗ).
+    // Дефолт full_payment корректен; кричим, если кто-то сменил на предоплату.
+    const PREPAY_MODES = ['full_prepayment', 'partial_prepayment', 'advance'];
+    if (
+      this.receiptConfig &&
+      PREPAY_MODES.includes(this.receiptConfig.paymentMode)
+    ) {
+      this.log.error(
+        `YOOKASSA_PAYMENT_MODE=${this.receiptConfig.paymentMode} — предоплатный режим ломает идемпотентность фискализации маркированного (риск двойного чека). Верните full_payment.`,
+      );
+      void this.telegram
+        .alert(
+          'Опасная конфигурация чека',
+          `YOOKASSA_PAYMENT_MODE=${this.receiptConfig.paymentMode} — риск двойной фискализации маркированного. Нужен full_payment.`,
+        )
+        .catch(() => undefined);
+    }
     // Страховка конфигурации (находка финального аудита): на магазине ЮKassa
     // включены «Чеки от ЮKassa» (режим «Принимать платёж»), и платёж БЕЗ чека
     // там отклоняется «Receipt is missing or illegal». Если эквайринг включён,
