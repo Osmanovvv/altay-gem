@@ -44,6 +44,11 @@ module.exports = {
         { method: 'GET', path: '/orders/:id', handler: 'bridge.one', config: { policies: [] } },
         { method: 'PATCH', path: '/orders/:id/status', handler: 'bridge.status', config: { policies: [] } },
         { method: 'PATCH', path: '/orders/:id/items/:itemId/mark-codes', handler: 'bridge.markCodes', config: { policies: [] } },
+        // PUT-алиасы тех же handlers: у getFetchClient админки Strapi нет метода
+        // patch (только get/post/put/del — см. @strapi/admin dist getFetchClient),
+        // поэтому admin/src/api.js шлёт PUT. К бэкенду мост всё равно идёт PATCH'ем.
+        { method: 'PUT', path: '/orders/:id/status', handler: 'bridge.status', config: { policies: [] } },
+        { method: 'PUT', path: '/orders/:id/items/:itemId/mark-codes', handler: 'bridge.markCodes', config: { policies: [] } },
         { method: 'POST', path: '/orders/:id/fiscalize', handler: 'bridge.fiscalize', config: { policies: [] } },
       ],
     },

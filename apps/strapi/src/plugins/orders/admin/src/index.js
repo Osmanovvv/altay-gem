@@ -1,8 +1,10 @@
+import { ShoppingCart } from '@strapi/icons';
+
 export default {
   register(app) {
     app.addMenuLink({
       to: 'plugins/orders',
-      icon: () => '🛒',
+      icon: ShoppingCart,
       intlLabel: { id: 'orders.menu', defaultMessage: 'Заказы' },
       // Рекомендованная форма Strapi 5: лоадер с dynamic import
       // (async () => App работает, но даёт deprecation warning в консоли).
