@@ -11,6 +11,11 @@ describe('humanError', () => {
       .toBe('Действие недоступно для текущего статуса — обновите страницу');
     expect(humanError({ code: 'ORDERS_NOT_CONFIGURED', message: 'x' }))
       .toBe('Раздел не настроен: нет доступа к серверу заказов');
+    expect(humanError({ code: 'ORDERS_UNAVAILABLE', message: 'x' }))
+      .toBe('Сервер заказов недоступен. Повторите');
+  });
+  it('код, совпадающий с ключом Object.prototype, не отдаёт функцию', () => {
+    expect(humanError({ code: 'toString', message: 'x' })).toBe('x');
   });
   it('без кода — текст бэкенда как есть (он человекочитаемый)', () => {
     expect(humanError({ message: 'кодов маркировки 1, а единиц 2 — чек не собрать' }))
