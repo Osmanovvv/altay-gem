@@ -15,7 +15,7 @@ export const PICKUP_STORE_HINT: Record<PickupPoint, string> = {
 export const PICKUP_POINTS = Object.keys(PICKUP_STORE_HINT) as PickupPoint[];
 
 export function isPickupPoint(method: string): method is PickupPoint {
-  return method in PICKUP_STORE_HINT;
+  return Object.hasOwn(PICKUP_STORE_HINT, method);
 }
 
 /** Какому магазину Эвотора соответствует каждая точка самовывоза. */

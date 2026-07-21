@@ -34,6 +34,10 @@ describe('pickup-points', () => {
     expect(isPickupPoint('russia')).toBe(false);
   });
 
+  test('isPickupPoint не пропускает ключи прототипа', () => {
+    expect(isPickupPoint('toString')).toBe(false);
+  });
+
   test('PICKUP_POINTS перечисляет обе точки', () => {
     expect(PICKUP_POINTS).toEqual(['pickup_leningradskaya', 'pickup_titova']);
   });

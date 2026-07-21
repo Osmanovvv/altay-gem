@@ -27,6 +27,9 @@ export function safePortionMassG(v: number | null | undefined): number {
  * ДО буфера, буфер по-магазинно. Единственный источник этой математики —
  * используют витрина (карточка/разбивка по точкам), create() и quote:
  * расхождение «показали 4, а заказать можно 2» исключается конструктивно.
+ *
+ * Весовой считается граммами-первыми: float-деление 2.3/0.1=22.999… съедало
+ * порцию при floor; умножение на 1000 до деления держит значения целыми.
  */
 export function orderableUnits(input: {
   /** Физостаток минус активные резервы, в шт или кг. */
@@ -38,7 +41,7 @@ export function orderableUnits(input: {
   const isWeight = input.measure === 'кг';
   const raw = isWeight
     ? Math.floor(
-        input.availableQty / (safePortionMassG(input.portionMassG) / 1000),
+        (input.availableQty * 1000) / safePortionMassG(input.portionMassG),
       )
     : Math.floor(input.availableQty);
   return applyStockBuffer(raw, input.buffer);

@@ -102,6 +102,25 @@ describe('orderableUnits', () => {
     ).toBe(0);
   });
 
+  test('весовой: float-деление не съедает порцию (2.3 кг / 100 г = ровно 23)', () => {
+    expect(
+      orderableUnits({
+        availableQty: 2.3,
+        measure: 'кг',
+        portionMassG: 100,
+        buffer: 0,
+      }),
+    ).toBe(23);
+    expect(
+      orderableUnits({
+        availableQty: 0.3,
+        measure: 'кг',
+        portionMassG: 100,
+        buffer: 0,
+      }),
+    ).toBe(3);
+  });
+
   test('битая масса порции (0/null) не даёт Infinity — дефолт 100 г', () => {
     expect(
       orderableUnits({
