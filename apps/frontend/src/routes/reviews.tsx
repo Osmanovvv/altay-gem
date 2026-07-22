@@ -6,22 +6,23 @@ import { Quote, Star } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
+import { useSettings } from "@/context/SettingsContext";
 import type { Review } from "@/data/reviews";
 import { fetchReviews, toReviews } from "@/lib/api";
 
 export const Route = createFileRoute("/reviews")({
   head: () => ({
     meta: [
-      { title: "Отзывы покупателей - Жемчужина Алтая" },
+      { title: "Отзывы покупателей — Жемчужина Алтая" },
       {
         name: "description",
         content:
-          "Отзывы покупателей магазина Жемчужина Алтая на Яндекс.Картах и 2ГИС. Средний рейтинг 4,9.",
+          "Отзывы покупателей магазина «Жемчужина Алтая» на Яндекс.Картах и 2ГИС.",
       },
-      { property: "og:title", content: "Отзывы покупателей - Жемчужина Алтая" },
+      { property: "og:title", content: "Отзывы покупателей — Жемчужина Алтая" },
       {
         property: "og:description",
-        content: "Рейтинг 4,9 на Яндекс.Картах и 2ГИС.",
+        content: "Отзывы покупателей о натуральной продукции с Алтая.",
       },
     ],
   }),
@@ -36,7 +37,15 @@ type Filter = "Все" | "Яндекс" | "2ГИС";
 const FILTERS: Filter[] = ["Все", "Яндекс", "2ГИС"];
 
 function ReviewsPage() {
-  const { reviews: REVIEWS } = Route.useLoaderData();
+  const { reviews: REVIEWS, average } = Route.useLoaderData();
+  const settings = useSettings();
+  const yandexUrl = settings?.reviewYandexUrl?.trim();
+  const gisUrl = settings?.review2gisUrl?.trim();
+  const widgetUrl = settings?.yandexReviewsWidgetUrl?.trim();
+  const subtitle =
+    average != null
+      ? `Средний рейтинг ${average.toLocaleString("ru-RU")} по отзывам покупателей. Спасибо каждому, кто делится впечатлениями.`
+      : "Спасибо каждому, кто делится впечатлениями о нашей продукции.";
   const [filter, setFilter] = useState<Filter>("Все");
 
   const filtered = useMemo<Review[]>(() => {
@@ -58,7 +67,7 @@ function ReviewsPage() {
         <PageHero
           eyebrow="Отзывы"
           title="Отзывы покупателей"
-          subtitle="Рейтинг 4,9 на Яндекс.Картах и 2ГИС. Спасибо каждому, кто делится впечатлениями."
+          subtitle={subtitle}
         />
 
         <section className="mx-auto w-full max-w-6xl px-4 py-14 md:px-8 md:py-20">
@@ -208,6 +217,33 @@ function ReviewsPage() {
             </p>
           )}
 
+          {widgetUrl && (
+            <div className="mt-16">
+              <h2
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontWeight: 500,
+                  fontSize: 26,
+                  color: "var(--color-text)",
+                  marginBottom: 16,
+                }}
+              >
+                Отзывы на Яндекс.Картах
+              </h2>
+              <iframe
+                src={widgetUrl}
+                title="Отзывы на Яндекс.Картах"
+                loading="lazy"
+                style={{
+                  width: "100%",
+                  height: 600,
+                  border: "1px solid rgba(31,26,14,0.1)",
+                  borderRadius: 24,
+                }}
+              />
+            </div>
+          )}
+
           {/* CTA block */}
           <div
             className="mt-16 overflow-hidden rounded-3xl p-8 md:p-12"
@@ -243,36 +279,46 @@ function ReviewsPage() {
                   покупателям выбрать качественные товары с Алтая.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <a
-                  href="#"
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-transform hover:-translate-y-0.5"
-                  style={{
-                    background: "var(--color-accent)",
-                    color: "var(--color-bg-dark)",
-                    fontFamily: "var(--font-body)",
-                    fontWeight: 700,
-                    fontSize: 14,
-                    textDecoration: "none",
-                  }}
-                >
-                  Оставить на Яндекс
-                </a>
-                <a
-                  href="#"
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-colors hover:bg-white/10"
-                  style={{
-                    border: "1px solid rgba(255,253,247,0.3)",
-                    color: "var(--color-text-on-dark)",
-                    fontFamily: "var(--font-body)",
-                    fontWeight: 600,
-                    fontSize: 14,
-                    textDecoration: "none",
-                  }}
-                >
-                  Оставить на 2ГИС
-                </a>
-              </div>
+              {(yandexUrl || gisUrl) && (
+                <div className="flex flex-wrap gap-3">
+                  {yandexUrl && (
+                    <a
+                      href={yandexUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-transform hover:-translate-y-0.5"
+                      style={{
+                        background: "var(--color-accent)",
+                        color: "var(--color-bg-dark)",
+                        fontFamily: "var(--font-body)",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Оставить на Яндекс
+                    </a>
+                  )}
+                  {gisUrl && (
+                    <a
+                      href={gisUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-colors hover:bg-white/10"
+                      style={{
+                        border: "1px solid rgba(255,253,247,0.3)",
+                        color: "var(--color-text-on-dark)",
+                        fontFamily: "var(--font-body)",
+                        fontWeight: 600,
+                        fontSize: 14,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Оставить на 2ГИС
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </section>
