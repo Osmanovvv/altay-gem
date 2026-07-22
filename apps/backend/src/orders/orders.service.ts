@@ -91,7 +91,7 @@ export interface OrderResponse {
     deliveryRub: number;
     totalRub: number;
   };
-  paymentUrl: string | null; // появится на этапе 3 (Цифровая касса)
+  paymentUrl: string | null; // ссылка на платёжную страницу ЮKassa (null — оплата на месте)
 }
 
 /**
@@ -1938,7 +1938,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit(): void {
-    // простой фоновый цикл; на этапе 3 переедет в надёжную очередь (Bull)
+    // Простой фоновый цикл автоотмены (unref — не держит процесс). Очередь
+    // (Bull) не понадобилась: гонки оплата↔автоотмена закрыты guard'ами в
+    // самих UPDATE (cancelExpired/markPaid), пометка идемпотентна.
     this.sweeper = setInterval(() => {
       this.cancelExpired().catch((err: Error) =>
         this.log.error(`автоотмена: ${err.message}`),

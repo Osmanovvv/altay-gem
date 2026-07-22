@@ -13,6 +13,7 @@ import {
   StrapiService,
 } from '../strapi/strapi.service';
 import { perStoreAvailability } from './catalog-availability';
+import { hasStorefrontCategory } from './publishable';
 import { safePortionMassG } from './stock';
 
 /** Карточка товара для списков (контракт витрины, ТЗ р.9). */
@@ -189,6 +190,14 @@ export class CatalogService {
     const cards: ProductCard[] = [];
     const internal = new Map<string, ProductInternal>();
     for (const sp of strapiProducts) {
+      // Без категории на витрину не публикуем (ТЗ 8.2): иначе товар попадает
+      // в «Найдено N», но недостижим фильтром — счётчики категорий врут.
+      if (!hasStorefrontCategory(sp)) {
+        this.log.warn(
+          `товар «${sp.adminName}» без категории — скрыт с витрины до категоризации`,
+        );
+        continue;
+      }
       const rep = byUuid.get(sp.evotorUuid);
       if (!rep) {
         this.log.warn(

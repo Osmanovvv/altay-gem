@@ -25,8 +25,8 @@ backend-dev: ## Запустить backend в dev-режиме (нужен .env 
 backend-build: ## Собрать backend
 	cd apps/backend && bun run build
 
-strapi-dev: ## Запустить Strapi в dev-режиме — этап 1
-	@echo "TODO(этап 1): cd apps/strapi && bun run develop"
+strapi-dev: ## Запустить Strapi в dev-режиме
+	cd apps/strapi && npm run develop
 
 frontend-dev: ## Запустить витрину в dev-режиме
 	cd apps/frontend && bun run dev
