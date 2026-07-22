@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as ReviewsRouteImport } from './routes/reviews'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as DeliveryRouteImport } from './routes/delivery'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CatalogRouteImport } from './routes/catalog'
@@ -30,6 +31,11 @@ const SearchRoute = SearchRouteImport.update({
 const ReviewsRoute = ReviewsRouteImport.update({
   id: '/reviews',
   path: '/reviews',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeliveryRoute = DeliveryRouteImport.update({
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/delivery': typeof DeliveryRoute
+  '/privacy': typeof PrivacyRoute
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
   '/order/$id': typeof OrderIdRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/delivery': typeof DeliveryRoute
+  '/privacy': typeof PrivacyRoute
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
   '/order/$id': typeof OrderIdRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/delivery': typeof DeliveryRoute
+  '/privacy': typeof PrivacyRoute
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
   '/order/$id': typeof OrderIdRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/delivery'
+    | '/privacy'
     | '/reviews'
     | '/search'
     | '/order/$id'
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/delivery'
+    | '/privacy'
     | '/reviews'
     | '/search'
     | '/order/$id'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/delivery'
+    | '/privacy'
     | '/reviews'
     | '/search'
     | '/order/$id'
@@ -178,6 +190,7 @@ export interface RootRouteChildren {
   CatalogRoute: typeof CatalogRoute
   CheckoutRoute: typeof CheckoutRoute
   DeliveryRoute: typeof DeliveryRoute
+  PrivacyRoute: typeof PrivacyRoute
   ReviewsRoute: typeof ReviewsRoute
   SearchRoute: typeof SearchRoute
   OrderIdRoute: typeof OrderIdRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/reviews'
       fullPath: '/reviews'
       preLoaderRoute: typeof ReviewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/delivery': {
@@ -282,6 +302,7 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogRoute: CatalogRoute,
   CheckoutRoute: CheckoutRoute,
   DeliveryRoute: DeliveryRoute,
+  PrivacyRoute: PrivacyRoute,
   ReviewsRoute: ReviewsRoute,
   SearchRoute: SearchRoute,
   OrderIdRoute: OrderIdRoute,

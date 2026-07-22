@@ -196,9 +196,9 @@ export function Footer() {
           )}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <span>© Жемчужина Алтая, 2026</span>
-            <a href="#privacy" className="transition-colors hover:text-white" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+            <Link to="/privacy" className="transition-colors hover:text-white" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
               Политика конфиденциальности
-            </a>
+            </Link>
           </div>
         </div>
       </div>

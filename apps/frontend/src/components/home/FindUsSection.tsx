@@ -3,28 +3,18 @@ import { Clock, Mail, MapPin, Navigation, Phone } from "lucide-react";
 
 import { useSettings } from "@/context/SettingsContext";
 
-const FALLBACK_CONTACTS = [
-  {
-    title: "Жемчужина Алтая",
-    address: "Новосибирск, ул. Ленинградская 75/2",
-    hours: "Ежедневно 9:00–20:00",
-  },
-  {
-    title: "Натуральные продукты",
-    address: "Новосибирск, ул. Титова 32",
-    hours: "Ежедневно 9:00–20:00",
-  },
-];
-
 export function FindUsSection() {
   const settings = useSettings();
-  const CONTACTS = settings?.storePoints?.length
-    ? settings.storePoints.map((p) => ({
-        title: p.name,
-        address: p.address,
-        hours: p.hours ?? "",
-      }))
-    : FALLBACK_CONTACTS;
+  const points = settings?.storePoints?.length
+    ? settings.storePoints
+    : [
+        { name: "Жемчужина Алтая", address: "Новосибирск, ул. Ленинградская 75/2", hours: "Ежедневно 9:00–20:00" },
+        { name: "Натуральные продукты", address: "Новосибирск, ул. Титова 32", hours: "Ежедневно 9:00–20:00" },
+      ];
+  const phone = settings?.contacts?.phone?.trim();
+  const email = settings?.contacts?.email?.trim();
+  const routeUrl = (p: { address: string; mapUrl?: string }) =>
+    p.mapUrl?.trim() || `https://yandex.ru/maps/?text=${encodeURIComponent(p.address)}`;
   return (
     <section
       id="contacts"
@@ -63,9 +53,9 @@ export function FindUsSection() {
           </h2>
 
           <div className="mt-8 grid gap-4">
-            {CONTACTS.map((contact) => (
+            {points.map((p) => (
               <article
-                key={contact.title}
+                key={p.address}
                 className="rounded-2xl border p-5"
                 style={{
                   borderColor: "rgba(200,150,62,0.22)",
@@ -80,7 +70,7 @@ export function FindUsSection() {
                     color: "var(--color-text)",
                   }}
                 >
-                  {contact.title}
+                  {p.name}
                 </h3>
                 <p
                   className="mt-3 flex items-start gap-2"
@@ -92,7 +82,7 @@ export function FindUsSection() {
                   }}
                 >
                   <MapPin size={17} style={{ color: "var(--color-accent-dark)", flexShrink: 0, marginTop: 2 }} />
-                  {contact.address}
+                  {p.address}
                 </p>
                 <p
                   className="mt-2 flex items-center gap-2"
@@ -103,46 +93,52 @@ export function FindUsSection() {
                   }}
                 >
                   <Clock size={17} style={{ color: "var(--color-accent-dark)" }} />
-                  {contact.hours}
+                  {p.hours ?? ""}
                 </p>
               </article>
             ))}
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a
-              href="tel:+73830000000"
-              className="inline-flex items-center justify-center gap-2 rounded-full"
-              style={{
-                backgroundColor: "var(--color-accent)",
-                color: "var(--color-bg-dark)",
-                fontFamily: "var(--font-body)",
-                fontWeight: 600,
-                fontSize: 15,
-                padding: "13px 22px",
-                minHeight: 44,
-              }}
-            >
-              <Phone size={17} />
-              Позвонить
-            </a>
-            <a
-              href="mailto:hello@altai-pearl.ru"
-              className="inline-flex items-center justify-center gap-2 rounded-full border"
-              style={{
-                borderColor: "var(--color-accent)",
-                color: "var(--color-accent-dark)",
-                fontFamily: "var(--font-body)",
-                fontWeight: 600,
-                fontSize: 15,
-                padding: "12px 22px",
-                minHeight: 44,
-              }}
-            >
-              <Mail size={17} />
-              Написать
-            </a>
-          </div>
+          {(phone || email) && (
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              {phone && (
+                <a
+                  href={`tel:${phone.replace(/[^+\d]/g, "")}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-full"
+                  style={{
+                    backgroundColor: "var(--color-accent)",
+                    color: "var(--color-bg-dark)",
+                    fontFamily: "var(--font-body)",
+                    fontWeight: 600,
+                    fontSize: 15,
+                    padding: "13px 22px",
+                    minHeight: 44,
+                  }}
+                >
+                  <Phone size={17} />
+                  Позвонить
+                </a>
+              )}
+              {email && (
+                <a
+                  href={`mailto:${email}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border"
+                  style={{
+                    borderColor: "var(--color-accent)",
+                    color: "var(--color-accent-dark)",
+                    fontFamily: "var(--font-body)",
+                    fontWeight: 600,
+                    fontSize: 15,
+                    padding: "12px 22px",
+                    minHeight: 44,
+                  }}
+                >
+                  <Mail size={17} />
+                  Написать
+                </a>
+              )}
+            </div>
+          )}
         </motion.div>
 
         <motion.div
@@ -205,38 +201,25 @@ export function FindUsSection() {
             >
               Построить маршрут:
             </span>
-            <a
-              href="https://yandex.ru/maps/65/novosibirsk/?text=%D0%9D%D0%BE%D0%B2%D0%BE%D1%81%D0%B8%D0%B1%D0%B8%D1%80%D1%81%D0%BA%2C%20%D0%92%D0%B0%D1%82%D1%83%D1%82%D0%B8%D0%BD%D0%B0%2089"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full px-4 transition-colors hover:opacity-85"
-              style={{
-                backgroundColor: "var(--color-bg-dark)",
-                color: "var(--color-accent-light)",
-                fontFamily: "var(--font-body)",
-                fontSize: 13,
-                fontWeight: 600,
-                minHeight: 38,
-              }}
-            >
-              Яндекс.Карты
-            </a>
-            <a
-              href="https://2gis.ru/novosibirsk/search/%D0%92%D0%B0%D1%82%D1%83%D1%82%D0%B8%D0%BD%D0%B0%2089"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border px-4 transition-colors hover:bg-black/5"
-              style={{
-                borderColor: "rgba(31,26,14,0.2)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-body)",
-                fontSize: 13,
-                fontWeight: 600,
-                minHeight: 38,
-              }}
-            >
-              2ГИС
-            </a>
+            {points.map((p) => (
+              <a
+                key={p.address}
+                href={routeUrl(p)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full px-4 transition-colors hover:opacity-85"
+                style={{
+                  backgroundColor: "var(--color-bg-dark)",
+                  color: "var(--color-accent-light)",
+                  fontFamily: "var(--font-body)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  minHeight: 38,
+                }}
+              >
+                <MapPin size={15} /> {p.name}
+              </a>
+            ))}
           </div>
         </motion.div>
       </div>
