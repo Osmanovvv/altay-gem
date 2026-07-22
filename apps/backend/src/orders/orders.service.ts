@@ -44,7 +44,7 @@ import {
   RECEIPT_MAX_ITEMS,
   buildPostPaymentReceipt,
   buildReceipt,
-  discountZeroesMarkedLine,
+  markedLineUnfiscalizable,
   receiptPositionsUpperBound,
   rubToKopecks,
   type Receipt,
@@ -516,11 +516,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             message: `В заказе слишком много позиций для одного фискального чека (лимит ${RECEIPT_MAX_ITEMS}). Пожалуйста, разделите заказ на несколько.`,
           });
         }
-        // Находка ревью: 100%-промо, покрывающее всю стоимость подпадающих
-        // строк, обнуляет их; маркированную строку с нулём в чек собрать
-        // нельзя НИКОГДА — а для маркированного заказа (отложенный чек) это
-        // вскрылось бы уже ПОСЛЕ оплаты. Отказываем до денег.
-        const zeroesMarked = discountZeroesMarkedLine(
+        // Находка ревью (уточнена): промокод может сделать маркированную строку
+        // несобираемой в чек, если после распределения скидки её net < quantity
+        // (хотя бы одной единице не хватает 1 копейки) — не только при 100%-промо.
+        // Считаем net тем же распределением, что и buildReceiptItems (без дрейфа),
+        // и отказываем ДО денег: для маркированного заказа (отложенный чек) это
+        // вскрылось бы уже ПОСЛЕ оплаты.
+        const unfiscalizable = markedLineUnfiscalizable(
           lines.map((l) => ({
             priceKopecks: rubToKopecks(l.p.priceRub),
             quantity: l.quantity,
@@ -531,11 +533,11 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           })),
           rubToKopecks(discountRub),
         );
-        if (zeroesMarked) {
+        if (unfiscalizable) {
           throw new BadRequestException({
             code: 'PROMO_ZEROES_MARKED_LINE',
             message:
-              'Промокод обнуляет стоимость маркированного товара — фискальный чек с таким составом собрать нельзя. Уберите промокод или маркированный товар из корзины.',
+              'Промокод снижает стоимость маркированного товара так, что фискальный чек с кодами маркировки собрать нельзя. Уберите промокод или маркированный товар из корзины.',
           });
         }
       }

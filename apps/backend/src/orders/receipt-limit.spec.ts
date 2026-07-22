@@ -3,7 +3,8 @@ import {
   RECEIPT_MAX_ITEMS,
   ReceiptLimitError,
   buildReceipt,
-  discountZeroesMarkedLine,
+  lineNetsAfterDiscount,
+  markedLineUnfiscalizable,
   receiptPositionsUpperBound,
   type ReceiptConfig,
   type ReceiptLineInput,
@@ -105,51 +106,130 @@ describe('receiptPositionsUpperBound (прегейт до сканировани
   });
 });
 
-describe('discountZeroesMarkedLine (находка ревью: 100%-промо на маркированную категорию)', () => {
-  // Сценарий: скидка == полной стоимости подпадающих строк → allocate отдаёт
-  // каждой её весь gross → net 0 → маркированную строку в чек не собрать
-  // НИКОГДА, а выяснится это после оплаты (отложенная фискализация).
-  const marked = {
-    priceKopecks: 50000,
-    quantity: 1,
-    discountEligible: true,
-    isMarked: true,
-  };
-  const other = {
-    priceKopecks: 30000,
-    quantity: 1,
-    discountEligible: false,
-    isMarked: false,
-  };
-
-  it('скидка == gross подпадающих строк, среди них маркированная → true', () => {
-    expect(discountZeroesMarkedLine([marked, other], 50000)).toBe(true);
-  });
-
-  it('скидка меньше gross подпадающих → false (строка не занулится)', () => {
-    expect(discountZeroesMarkedLine([marked, other], 49900)).toBe(false);
-  });
-
-  it('обнуляются только НЕмаркированные → false (их просто выкинут из чека)', () => {
+describe('markedLineUnfiscalizable (точный прегейт: net < quantity маркированной строки)', () => {
+  // RESIDUAL-кейс, который старая аппроксимация discountZeroesMarkedLine
+  // ПРОПУСКАЛА: discount 9999 < eligibleGross 10000 → старая давала false,
+  // хотя allocate отдаёт маркированной строке (вес 100 из 10000) её полный
+  // gross 100 → её net = 0 < 1 → чек с кодом собрать нельзя. Это и есть гэп,
+  // из-за которого маркированный заказ застревал бы уже ПОСЛЕ оплаты.
+  it('residual: discount < eligibleGross, но allocate зануляет маркир. строку → true', () => {
     expect(
-      discountZeroesMarkedLine(
-        [{ ...marked, isMarked: false }, other],
-        50000,
+      markedLineUnfiscalizable(
+        [
+          { priceKopecks: 100, quantity: 1, isMarked: true, discountEligible: true },
+          { priceKopecks: 9900, quantity: 1, discountEligible: true },
+        ],
+        9999,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('100% на весь заказ (все eligible) с маркированной строкой → true', () => {
+  it('100% на все eligible строки, среди них маркированная (net 0) → true', () => {
+    // weights [50000, 30000], allocate(_, 80000) → [50000, 30000] → nets [0, 0]
     expect(
-      discountZeroesMarkedLine(
-        [marked, { ...other, discountEligible: true }],
+      markedLineUnfiscalizable(
+        [
+          { priceKopecks: 50000, quantity: 1, isMarked: true, discountEligible: true },
+          { priceKopecks: 30000, quantity: 1, discountEligible: true },
+        ],
         80000,
       ),
     ).toBe(true);
   });
 
+  it('quantity>1: net < quantity (единице не хватит копейки) → true', () => {
+    // gross 200, discount 199 → net 1 < quantity 2 (perUnit=0 у части единиц)
+    expect(
+      markedLineUnfiscalizable(
+        [{ priceKopecks: 100, quantity: 2, isMarked: true, discountEligible: true }],
+        199,
+      ),
+    ).toBe(true);
+  });
+
+  it('нет маркированных строк → false (нулевую немаркир. просто выкинут)', () => {
+    // тот же residual-состав, но без isMarked: net [0, 1], но некому падать
+    expect(
+      markedLineUnfiscalizable(
+        [
+          { priceKopecks: 100, quantity: 1, discountEligible: true },
+          { priceKopecks: 9900, quantity: 1, discountEligible: true },
+        ],
+        9999,
+      ),
+    ).toBe(false);
+  });
+
   it('без скидки → false', () => {
-    expect(discountZeroesMarkedLine([marked], 0)).toBe(false);
+    expect(
+      markedLineUnfiscalizable(
+        [{ priceKopecks: 50000, quantity: 1, isMarked: true, discountEligible: true }],
+        0,
+      ),
+    ).toBe(false);
+  });
+
+  it('маркир. net ≥ quantity (собирается) → false', () => {
+    // residual-состав, discount 9000 → nets [10, 990]: маркир. net 10 ≥ 1
+    expect(
+      markedLineUnfiscalizable(
+        [
+          { priceKopecks: 100, quantity: 1, isMarked: true, discountEligible: true },
+          { priceKopecks: 9900, quantity: 1, discountEligible: true },
+        ],
+        9000,
+      ),
+    ).toBe(false);
+  });
+
+  it('quantity>1: net ровно = quantity (по 1 коп/ед., собирается) → false', () => {
+    // gross 200, discount 198 → net 2 == quantity 2: 2 < 2 неверно → false
+    expect(
+      markedLineUnfiscalizable(
+        [{ priceKopecks: 100, quantity: 2, isMarked: true, discountEligible: true }],
+        198,
+      ),
+    ).toBe(false);
+  });
+
+  it('маркир. строка НЕ eligible (категорийный промо) — скидка её не трогает → false', () => {
+    // weights [0, 9900]: маркир. net остаётся 100 ≥ 1, скидка ушла в другую строку
+    expect(
+      markedLineUnfiscalizable(
+        [
+          { priceKopecks: 100, quantity: 1, isMarked: true, discountEligible: false },
+          { priceKopecks: 9900, quantity: 1, discountEligible: true },
+        ],
+        9900,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('lineNetsAfterDiscount (единый источник net для чека и прегейта)', () => {
+  it('Σ nets = Σ gross − discount (точная сумма после largest-remainder)', () => {
+    const nets = lineNetsAfterDiscount(
+      [
+        { priceKopecks: 100, quantity: 1, discountEligible: true },
+        { priceKopecks: 9900, quantity: 1, discountEligible: true },
+      ],
+      9999,
+    );
+    expect(nets).toEqual([0, 1]);
+    expect(nets.reduce((a, b) => a + b, 0)).toBe(10000 - 9999);
+  });
+
+  it('скидка раздаётся ТОЛЬКО по eligible-строкам (вес 0 у неподпадающих)', () => {
+    // weights [0, 9900], discount 900 → неподпадающая строка нетронута (100),
+    // вся скидка ушла в eligible (9900 − 900 = 9000)
+    const nets = lineNetsAfterDiscount(
+      [
+        { priceKopecks: 100, quantity: 1, discountEligible: false },
+        { priceKopecks: 9900, quantity: 1, discountEligible: true },
+      ],
+      900,
+    );
+    expect(nets).toEqual([100, 9000]);
   });
 });
 

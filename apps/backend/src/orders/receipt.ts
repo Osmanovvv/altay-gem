@@ -137,14 +137,14 @@ export function receiptPositionsUpperBound(
 }
 
 /**
- * Скидка, покрывающая ВСЮ стоимость подпадающих строк, детерминированно
- * обнуляет каждую из них (allocate раздаёт каждой её полный gross). Если среди
- * них есть маркированная — чек не собрать НИКОГДА (коды обязаны попасть в
- * чек, а нулевые позиции ЮKassa отвергает), причём для маркированного заказа
- * это выяснилось бы только ПОСЛЕ оплаты (отложенная фискализация). Прегейт
- * для create(): ловим состав «100%-промо + маркированный товар» до денег.
+ * Промокод делает маркированную строку несобираемой в чек: после распределения
+ * скидки её net < quantity, т.е. хотя бы одной единице не хватает 1 копейки
+ * (каждая единица маркированного — отдельная позиция со своим кодом Data Matrix).
+ * Точный прегейт для create(): считает net тем же распределением, что и
+ * buildReceiptItems (без дрейфа), и отказывает ДО денег — для маркированного
+ * заказа несобираемость иначе вскрылась бы уже ПОСЛЕ оплаты (отложенный чек).
  */
-export function discountZeroesMarkedLine(
+export function markedLineUnfiscalizable(
   lines: Array<{
     priceKopecks: number;
     quantity: number;
@@ -153,16 +153,9 @@ export function discountZeroesMarkedLine(
   }>,
   discountKopecks: number,
 ): boolean {
-  if (discountKopecks <= 0) return false;
-  const eligible = lines.filter((l) => l.discountEligible !== false);
-  const eligibleGross = eligible.reduce(
-    (s, l) => s + l.priceKopecks * l.quantity,
-    0,
-  );
-  if (eligibleGross <= 0) return false;
-  return (
-    discountKopecks >= eligibleGross && eligible.some((l) => l.isMarked === true)
-  );
+  if (Math.round(discountKopecks) <= 0) return false;
+  const nets = lineNetsAfterDiscount(lines, discountKopecks);
+  return lines.some((l, i) => l.isMarked === true && nets[i] < l.quantity);
 }
 
 /**
@@ -182,6 +175,28 @@ function allocate(weights: number[], total: number): number[] {
     out[byFrac[k % byFrac.length].i] += 1;
   }
   return out;
+}
+
+/**
+ * Нетто-сумма каждой строки после распределения скидки — ЕДИНЫЙ источник для
+ * buildReceiptItems и прегейта create(): оба видят одинаковый net, расхождение
+ * «прегейт пропустил, а чек не собрался» исключено конструктивно. Скидка
+ * раздаётся ТОЛЬКО по eligible-строкам (вес 0 у неподпадающих), largest-remainder.
+ */
+export function lineNetsAfterDiscount(
+  lines: Array<{
+    priceKopecks: number;
+    quantity: number;
+    discountEligible?: boolean;
+  }>,
+  discountKopecks: number,
+): number[] {
+  const rounded = lines.map((l) => Math.round(l.priceKopecks) * l.quantity);
+  const weights = lines.map((l, i) =>
+    l.discountEligible === false ? 0 : rounded[i],
+  );
+  const lineDiscount = allocate(weights, Math.round(discountKopecks));
+  return rounded.map((g, i) => g - lineDiscount[i]);
 }
 
 /**
@@ -285,13 +300,11 @@ export function buildReceiptItems(input: {
   if (new Set(allCodes).size !== allCodes.length) {
     throw new Error('Один и тот же код маркировки в нескольких позициях чека');
   }
-  const gross = lines.map((l) => l.priceKopecks * l.quantity);
-  // Скидку распределяем ТОЛЬКО по eligible-строкам (у неподпадающих вес 0),
-  // иначе категорийный промокод занизил бы цену чужой позиции в фиск. чеке.
-  const weights = lines.map((l, i) =>
-    l.discountEligible === false ? 0 : gross[i],
-  );
-  const lineDiscount = allocate(weights, discountKopecks);
+  // Нетто каждой строки — ЕДИНЫМ распределением скидки (тем же, что видит
+  // прегейт markedLineUnfiscalizable): скидка только по eligible-строкам
+  // (у неподпадающих вес 0), largest-remainder. Общий источник исключает
+  // дрейф «прегейт пропустил, а чек не собрался».
+  const nets = lineNetsAfterDiscount(lines, discountKopecks);
   const items: ReceiptItem[] = [];
   lines.forEach((l, i) => {
     // Маркированная строка: у КАЖДОЙ единицы свой код Data Matrix, поэтому
@@ -305,7 +318,7 @@ export function buildReceiptItems(input: {
         );
       }
     }
-    const net = gross[i] - lineDiscount[i];
+    const net = nets[i];
     if (net <= 0) {
       // Маркированную строку молча выбросить нельзя: коды не попали бы в чек
       // и не вышли бы из оборота в ЧЗ при «успешной» фискализации.
