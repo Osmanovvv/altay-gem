@@ -12,8 +12,8 @@ const CATALOG_FALLBACK = [
 
 const CUSTOMERS = [
   { label: "Доставка", to: "/delivery" },
-  { label: "Оплата", to: "/delivery" },
-  { label: "Возврат", to: "/delivery" },
+  { label: "Оплата", to: "/delivery", hash: "payment" },
+  { label: "Возврат", to: "/delivery", hash: "returns" },
   { label: "Контакты", to: "/about" },
 ] as const;
 
@@ -134,7 +134,12 @@ export function Footer() {
             <ul className="flex flex-col">
               {CUSTOMERS.map((l) => (
                 <li key={l.label}>
-                  <Link to={l.to} style={linkStyle} className="transition-colors hover:text-white">
+                  <Link
+                    to={l.to}
+                    hash={"hash" in l ? l.hash : undefined}
+                    style={linkStyle}
+                    className="transition-colors hover:text-white"
+                  >
                     {l.label}
                   </Link>
                 </li>

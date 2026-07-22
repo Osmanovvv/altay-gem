@@ -1,9 +1,9 @@
 /*
  * Design system — Жемчужина Алтая
  *
- * NOTE: На этом стеке (Tailwind v4 + Lightning CSS) удалённые @import ломают
- * сборку, поэтому Cormorant Garamond и Golos Text подключаются через <link>
- * в src/routes/__root.tsx. Здесь — только токены дизайн-системы.
+ * NOTE: Семейства шрифтов (Unbounded, Inter, Cormorant Garamond, Golos Text)
+ * самохостятся через @fontsource — импорты в src/styles.css. Внешний Google
+ * Fonts CDN убран. Здесь — только токены дизайн-системы.
  */
 
 :root {

@@ -3,6 +3,26 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* Self-hosted шрифты (@fontsource) вместо внешнего Google Fonts CDN.
+   Каждый файл веса включает подмножества latin + latin-ext + cyrillic +
+   cyrillic-ext через unicode-range, поэтому кириллица рендерится без
+   внешних запросов. Веса — те же, что были в прежнем Google-URL. */
+@import "@fontsource/unbounded/400.css";
+@import "@fontsource/unbounded/600.css";
+@import "@fontsource/unbounded/700.css";
+@import "@fontsource/unbounded/800.css";
+@import "@fontsource/unbounded/900.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/500.css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/golos-text/400.css";
+@import "@fontsource/golos-text/500.css";
+@import "@fontsource/golos-text/600.css";
+
 
 @custom-variant dark (&:is(.dark *));
 

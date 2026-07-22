@@ -323,7 +323,7 @@ function DeliveryPage() {
             ))}
           </div>
 
-          <div className="mt-12">
+          <div id="payment" style={{ scrollMarginTop: 96 }} className="mt-12">
             <SectionEyebrow>Оплата</SectionEyebrow>
             <SectionTitle>Способы оплаты</SectionTitle>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -382,6 +382,7 @@ function DeliveryPage() {
               </p>
             </InfoCard>
             <InfoCard
+              id="returns"
               tone="default"
               icon={<RotateCcw size={22} />}
               title="Возврат и обмен"
@@ -555,16 +556,20 @@ function InfoCard({
   icon,
   title,
   children,
+  id,
 }: {
   tone: "default" | "warning";
   icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   const isWarn = tone === "warning";
   return (
     <article
+      id={id}
       style={{
+        scrollMarginTop: 96,
         backgroundColor: isWarn ? "rgba(232,180,79,0.14)" : "#fffdf7",
         border: `1px solid ${
           isWarn ? "rgba(232,180,79,0.45)" : "rgba(31,26,14,0.06)"
