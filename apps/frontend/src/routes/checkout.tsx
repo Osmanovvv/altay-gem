@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -19,6 +19,12 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart } from "@/context/CartContext";
 import { ApiError, createOrder, quoteDelivery, type ApiDeliveryQuote } from "@/lib/api";
+import {
+  caretAfterDigit,
+  formatPhoneDigits,
+  phoneDigits,
+  significantDigitsBeforeCaret,
+} from "@/lib/phone-mask";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -70,19 +76,6 @@ const PICKUP_SHORT: Record<"pickup_leningradskaya" | "pickup_titova", string> = 
   pickup_leningradskaya: "Ленинградская 75/2",
   pickup_titova: "Титова 32",
 };
-
-function maskPhone(value: string): string {
-  const digits = value.replace(/\D/g, "").replace(/^8/, "7").slice(0, 11);
-  if (!digits) return "";
-  const d = digits.startsWith("7") ? digits.slice(1) : digits;
-  let out = "+7";
-  if (d.length > 0) out += ` (${d.slice(0, 3)}`;
-  if (d.length >= 3) out += `)`;
-  if (d.length >= 3) out += ` ${d.slice(3, 6)}`;
-  if (d.length >= 6) out += `-${d.slice(6, 8)}`;
-  if (d.length >= 8) out += `-${d.slice(8, 10)}`;
-  return out;
-}
 
 function normalizePhone(value: string): string {
   const digits = value.replace(/\D/g, "").replace(/^8/, "7");
@@ -198,6 +191,68 @@ function CheckoutPage() {
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined }));
+  }
+
+  // --- Маска телефона (lib/phone-mask): курсор живёт в «цифровом» простран-
+  // стве, поэтому стирание не упирается в разделители «)», «-», пробел.
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneCaretRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = phoneInputRef.current;
+    const pos = phoneCaretRef.current;
+    if (el && pos !== null && document.activeElement === el) {
+      el.setSelectionRange(pos, pos);
+    }
+    phoneCaretRef.current = null;
+  }, [form.phone]);
+
+  function setPhone(digits: string, caretDigits: number, countryTyped = false) {
+    // Набрали только «7»/«8» — показываем заготовку «+7 (», чтобы формат был
+    // виден сразу; backspace на ней очищает поле целиком (ветка ниже).
+    const formatted = digits ? formatPhoneDigits(digits) : countryTyped ? "+7 (" : "";
+    phoneCaretRef.current = caretAfterDigit(formatted, caretDigits);
+    update("phone", formatted);
+  }
+
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const el = e.target;
+    const digits = phoneDigits(el.value);
+    const countryTyped = /\d/.test(el.value);
+    const caretDigits = significantDigitsBeforeCaret(
+      el.value,
+      el.selectionStart ?? el.value.length,
+    );
+    setPhone(digits, caretDigits, countryTyped);
+  }
+
+  function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const el = e.currentTarget;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    if (start !== end) return; // выделение стирается нативно, onChange доформатирует
+    const value = el.value;
+    const digits = phoneDigits(value);
+    if (e.key === "Backspace") {
+      if (start === 0) return;
+      const prev = value[start - 1];
+      // Цифра слева (и это не «7» кода страны) — обычное нативное удаление.
+      if (prev && /\d/.test(prev) && start > 4) return;
+      e.preventDefault();
+      const before = significantDigitsBeforeCaret(value, start);
+      if (before === 0) {
+        // Слева значащих цифр нет: пустая заготовка «+7 (» стирается целиком.
+        if (!digits) update("phone", "");
+        return;
+      }
+      setPhone(digits.slice(0, before - 1) + digits.slice(before), before - 1);
+    } else if (e.key === "Delete") {
+      const next = value[start];
+      if (next && /\d/.test(next) && start >= 4) return;
+      const before = significantDigitsBeforeCaret(value, start);
+      if (before >= digits.length) return; // справа цифр нет
+      e.preventDefault();
+      setPhone(digits.slice(0, before) + digits.slice(before + 1), before);
+    }
   }
 
   function validateStep(s: Step): boolean {
@@ -401,10 +456,12 @@ function CheckoutPage() {
                           error={errors.phone}
                           input={
                             <input
+                              ref={phoneInputRef}
                               type="tel"
                               autoComplete="tel"
                               value={form.phone}
-                              onChange={(e) => update("phone", maskPhone(e.target.value))}
+                              onChange={handlePhoneChange}
+                              onKeyDown={handlePhoneKeyDown}
                               placeholder="+7 (___) ___-__-__"
                               inputMode="tel"
                               className={inputCls(!!errors.phone)}

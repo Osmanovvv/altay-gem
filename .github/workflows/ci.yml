@@ -76,6 +76,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Lint
         run: bun run lint
+      - name: Test (unit, чистые модули)
+        run: bun test src/lib
       - name: Build
         run: bun run build
 
