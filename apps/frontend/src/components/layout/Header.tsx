@@ -20,7 +20,9 @@ import { useSettings } from "@/context/SettingsContext";
 
 export function Header({ phone: phoneProp }: HeaderProps) {
   const settings = useSettings();
-  const phone = phoneProp ?? settings?.contacts?.phone ?? "+7 (383) 000-00-00";
+  // Телефон из пропа/админки; фейковой заглушки не показываем — кнопка
+  // «Позвонить» просто скрыта, пока заказчица не заполнила контакты.
+  const phone = (phoneProp ?? settings?.contacts?.phone)?.trim();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   // Бейдж шапки — число ПОЗИЦИЙ корзины (ТЗ 6.1), не сумма количеств:
@@ -111,14 +113,16 @@ export function Header({ phone: phoneProp }: HeaderProps) {
 
           {/* Icons */}
           <div className="flex items-center gap-1 md:gap-2">
-            <a
-              href={`tel:${phone.replace(/[^+\d]/g, "")}`}
-              className="hidden md:inline-flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
-              style={{ width: 44, height: 44, color: textColor }}
-              aria-label="Позвонить"
-            >
-              <Phone size={20} />
-            </a>
+            {phone && (
+              <a
+                href={`tel:${phone.replace(/[^+\d]/g, "")}`}
+                className="hidden md:inline-flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
+                style={{ width: 44, height: 44, color: textColor }}
+                aria-label="Позвонить"
+              >
+                <Phone size={20} />
+              </a>
+            )}
             <Link
               to="/search"
               className="inline-flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
@@ -224,18 +228,20 @@ export function Header({ phone: phoneProp }: HeaderProps) {
                   </Link>
                 ))}
               </nav>
-              <div className="mt-auto border-t border-white/10 px-6 py-5">
-                <a
-                  href={`tel:${phone.replace(/[^+\d]/g, "")}`}
-                  className="flex items-center gap-3"
-                  style={{ color: "var(--color-accent)", minHeight: 44 }}
-                >
-                  <Phone size={18} />
-                  <span style={{ fontFamily: "var(--font-body)", fontWeight: 500 }}>
-                    {phone}
-                  </span>
-                </a>
-              </div>
+              {phone && (
+                <div className="mt-auto border-t border-white/10 px-6 py-5">
+                  <a
+                    href={`tel:${phone.replace(/[^+\d]/g, "")}`}
+                    className="flex items-center gap-3"
+                    style={{ color: "var(--color-accent)", minHeight: 44 }}
+                  >
+                    <Phone size={18} />
+                    <span style={{ fontFamily: "var(--font-body)", fontWeight: 500 }}>
+                      {phone}
+                    </span>
+                  </a>
+                </div>
+              )}
             </motion.aside>
           </>
         )}

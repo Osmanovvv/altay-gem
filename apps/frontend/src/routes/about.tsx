@@ -50,13 +50,13 @@ const FALLBACK_SHOPS = [
   {
     name: "Жемчужина Алтая",
     address: "г. Новосибирск, ул. Ленинградская 75/2",
-    phone: "+7 (383) 000-00-00",
+    phone: "",
     hours: "Ежедневно 9:00–20:00",
   },
   {
     name: "Натуральные продукты",
     address: "г. Новосибирск, ул. Титова 32",
-    phone: "+7 (383) 000-00-00",
+    phone: "",
     hours: "Ежедневно 9:00–20:00",
   },
 ];
@@ -245,11 +245,13 @@ function AboutPage() {
                   }}
                 >
                   <ShopLine icon={<MapPin size={16} />}>{s.address}</ShopLine>
-                  <ShopLine icon={<Phone size={16} />}>
-                    <a href={`tel:${s.phone.replace(/\D/g, "")}`} style={{ color: "inherit" }}>
-                      {s.phone}
-                    </a>
-                  </ShopLine>
+                  {s.phone && (
+                    <ShopLine icon={<Phone size={16} />}>
+                      <a href={`tel:${s.phone.replace(/\D/g, "")}`} style={{ color: "inherit" }}>
+                        {s.phone}
+                      </a>
+                    </ShopLine>
+                  )}
                   <ShopLine icon={<Clock size={16} />}>{s.hours}</ShopLine>
                 </ul>
               </div>

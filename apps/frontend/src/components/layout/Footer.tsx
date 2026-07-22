@@ -33,8 +33,10 @@ export function Footer() {
         { name: "Жемчужина Алтая", address: "Новосибирск, ул. Ленинградская 75/2", hours: "Ежедневно 9:00–20:00" },
         { name: "Натуральные продукты", address: "Новосибирск, ул. Титова 32", hours: "Ежедневно 9:00–20:00" },
       ];
-  const phone = settings?.contacts?.phone ?? "+7 (383) 000-00-00";
-  const email = settings?.contacts?.email ?? "hello@altai-pearl.ru";
+  // Контакты из админки; фейковых заглушек не показываем — если заказчица
+  // ещё не заполнила, строка контакта просто не рендерится (как в FindUs).
+  const phone = settings?.contacts?.phone?.trim();
+  const email = settings?.contacts?.email?.trim();
   const muted = "var(--color-text-muted)";
   const text = "#c8bfa8";
   const accent = "var(--color-accent)";
@@ -154,26 +156,30 @@ export function Footer() {
                   </span>
                 </li>
               ))}
-              <li>
-                <a
-                  href={"tel:" + phone.replace(/[^+\d]/g, "")}
-                  className="flex items-center gap-2 transition-colors hover:text-white"
-                  style={linkStyle}
-                >
-                  <Phone size={16} style={{ color: accent }} />
-                  {phone}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={"mailto:" + email}
-                  className="flex items-center gap-2 transition-colors hover:text-white"
-                  style={linkStyle}
-                >
-                  <Mail size={16} style={{ color: accent }} />
-                  {email}
-                </a>
-              </li>
+              {phone && (
+                <li>
+                  <a
+                    href={"tel:" + phone.replace(/[^+\d]/g, "")}
+                    className="flex items-center gap-2 transition-colors hover:text-white"
+                    style={linkStyle}
+                  >
+                    <Phone size={16} style={{ color: accent }} />
+                    {phone}
+                  </a>
+                </li>
+              )}
+              {email && (
+                <li>
+                  <a
+                    href={"mailto:" + email}
+                    className="flex items-center gap-2 transition-colors hover:text-white"
+                    style={linkStyle}
+                  >
+                    <Mail size={16} style={{ color: accent }} />
+                    {email}
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
         </div>

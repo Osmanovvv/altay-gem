@@ -170,11 +170,20 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
               color: "#c8bfa8",
             }}
           >
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden style={{ color: "var(--color-accent-light)" }}>★</span>
-              {trust?.yandexRating ?? 4.9} Яндекс.Карты · {trust?.gisRating ?? 4.8} 2ГИС
-            </span>
-            <span aria-hidden style={{ opacity: 0.4 }}>|</span>
+            {(trust?.yandexRating != null || trust?.gisRating != null) && (
+              <>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden style={{ color: "var(--color-accent-light)" }}>★</span>
+                  {[
+                    trust?.yandexRating != null ? `${trust.yandexRating} Яндекс.Карты` : null,
+                    trust?.gisRating != null ? `${trust.gisRating} 2ГИС` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                <span aria-hidden style={{ opacity: 0.4 }}>|</span>
+              </>
+            )}
             <span>Собственная пасека</span>
             <span aria-hidden style={{ opacity: 0.4 }}>|</span>
             <span>{trust?.note ?? "Два магазина в Новосибирске"}</span>
