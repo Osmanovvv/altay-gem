@@ -122,9 +122,13 @@ export interface ApiReviews {
 
 export interface ApiSettings {
   contacts: { phone?: string; email?: string } | null;
-  storePoints: Array<{ name: string; address: string; hours?: string; phone?: string }>;
+  storePoints: Array<{ name: string; address: string; hours?: string; phone?: string; mapUrl?: string }>;
   socialLinks: Array<{ label: string; url: string }>;
   requisites: string | null;
+  privacyPolicy: string | null;
+  reviewYandexUrl: string | null;
+  review2gisUrl: string | null;
+  yandexReviewsWidgetUrl: string | null;
   trust: { yandexRating?: number; gisRating?: number; note?: string } | null;
   delivery: {
     courierNskPriceRub: number | null;

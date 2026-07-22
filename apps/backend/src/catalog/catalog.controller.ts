@@ -215,6 +215,10 @@ export class CatalogController {
       storePoints: site.storePoints ?? [],
       socialLinks: site.socialLinks ?? [],
       requisites: site.requisites ?? null,
+      privacyPolicy: site.privacyPolicy ?? null,
+      reviewYandexUrl: site.reviewYandexUrl ?? null,
+      review2gisUrl: site.review2gisUrl ?? null,
+      yandexReviewsWidgetUrl: site.yandexReviewsWidgetUrl ?? null,
       trust: site.trust ?? null,
       delivery: {
         courierNskPriceRub: tariffs.courierNskPriceRub ?? null,

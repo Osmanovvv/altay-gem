@@ -44,6 +44,18 @@
     "requisites": {
       "type": "text"
     },
+    "privacyPolicy": {
+      "type": "text"
+    },
+    "reviewYandexUrl": {
+      "type": "string"
+    },
+    "review2gisUrl": {
+      "type": "string"
+    },
+    "yandexReviewsWidgetUrl": {
+      "type": "string"
+    },
     "trust": {
       "type": "component",
       "repeatable": false,
