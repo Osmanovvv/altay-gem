@@ -1,11 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Link,
-  createFileRoute,
-  notFound,
-  useNavigate,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, ShoppingBag } from "lucide-react";
 
 import { Header } from "@/components/layout/Header";
@@ -45,9 +40,7 @@ export const Route = createFileRoute("/product/$slug")({
       ],
     };
   },
-  notFoundComponent: () => (
-    <ProductNotFound />
-  ),
+  notFoundComponent: () => <ProductNotFound />,
   component: ProductPage,
 });
 
@@ -169,9 +162,7 @@ function ProductPage() {
                     // Крошка ведёт в каталог С ФИЛЬТРОМ своей категории (ТЗ 6.5).
                     navigate({
                       to: "/catalog",
-                      search: category.slug
-                        ? { category: category.slug }
-                        : {},
+                      search: category.slug ? { category: category.slug } : {},
                     })
                   }
                   className="transition-colors hover:text-[color:var(--color-text)]"
@@ -226,7 +217,7 @@ function ProductPage() {
             <span
               style={{
                 fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
                 fontSize: 22,
                 fontWeight: 700,
                 color: "var(--color-accent)",
@@ -251,12 +242,8 @@ function ProductPage() {
             onClick={onStickyAdd}
             className="ml-auto inline-flex flex-1 items-center justify-center gap-2 rounded-full"
             style={{
-              backgroundColor: product.inStock
-                ? "var(--color-accent)"
-                : "rgba(31,26,14,0.1)",
-              color: product.inStock
-                ? "var(--color-bg-dark)"
-                : "var(--color-text-muted)",
+              backgroundColor: product.inStock ? "var(--color-accent)" : "rgba(31,26,14,0.1)",
+              color: product.inStock ? "var(--color-bg-dark)" : "var(--color-text-muted)",
               fontFamily: "var(--font-body)",
               fontWeight: 700,
               fontSize: 14,

@@ -4,8 +4,8 @@ import type { Product } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
-  "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
-  "Новинка": { bg: "var(--color-success)", color: "#f5efe0" },
+  Хит: { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
+  Новинка: { bg: "var(--color-success)", color: "#f5efe0" },
 };
 
 /** Скидочные бейджи приходят с сервера любым процентом («-13%»). */
@@ -146,12 +146,10 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
           <span
             style={{
               fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+              fontVariantNumeric: "tabular-nums",
               fontWeight: 600,
               fontSize: 22,
-              color: p.oldPrice
-                ? "var(--color-accent-dark)"
-                : "var(--color-text)",
+              color: p.oldPrice ? "var(--color-accent-dark)" : "var(--color-text)",
               lineHeight: 1,
             }}
           >
@@ -161,7 +159,7 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
             <span
               style={{
                 fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
                 fontSize: 13,
                 color: "var(--color-text-muted)",
                 textDecoration: "line-through",
@@ -249,9 +247,7 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
             className="mt-auto inline-flex items-center justify-center gap-2 rounded-full"
             style={{
               marginTop: 18,
-              backgroundColor: p.inStock
-                ? "var(--color-accent)"
-                : "rgba(31,26,14,0.1)",
+              backgroundColor: p.inStock ? "var(--color-accent)" : "rgba(31,26,14,0.1)",
               color: p.inStock ? "var(--color-bg-dark)" : "var(--color-text-muted)",
               fontFamily: "var(--font-body)",
               fontWeight: 600,

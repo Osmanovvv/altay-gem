@@ -15,11 +15,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "name-asc", label: "По названию" },
 ];
 
-export function CatalogFilters({
-  count,
-  sort,
-  onSortChange,
-}: CatalogFiltersProps) {
+export function CatalogFilters({ count, sort, onSortChange }: CatalogFiltersProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const current = SORT_OPTIONS.find((o) => o.value === sort) ?? SORT_OPTIONS[0];
@@ -60,9 +56,7 @@ export function CatalogFilters({
         }}
       >
         Найдено товаров:{" "}
-        <span style={{ color: "var(--color-text)", fontWeight: 600 }}>
-          {count}
-        </span>
+        <span style={{ color: "var(--color-text)", fontWeight: 600 }}>{count}</span>
       </span>
 
       <div ref={rootRef} className="relative">

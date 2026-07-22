@@ -9,12 +9,7 @@ interface ProductGalleryProps {
   badges?: string[];
 }
 
-export function ProductGallery({
-  baseImage,
-  photos = [],
-  name,
-  badges = [],
-}: ProductGalleryProps) {
+export function ProductGallery({ baseImage, photos = [], name, badges = [] }: ProductGalleryProps) {
   // Каждое фото рисуем поверх фолбэка (градиента), пока файл не загрузился
   const variants = photos.length
     ? photos.map((p) => `url("${p}") center/cover no-repeat, ${baseImage}`)
@@ -105,31 +100,29 @@ export function ProductGallery({
       </div>
 
       {variants.length > 1 && (
-      <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${variants.length}, minmax(0,1fr))` }}
-      >
-        {variants.map((v, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setActive(i)}
-            aria-label={`Изображение ${i + 1}`}
-            className="overflow-hidden transition-all"
-            style={{
-              aspectRatio: "1 / 1",
-              borderRadius: 12,
-              background: v,
-              border:
-                active === i
-                  ? "2px solid var(--color-accent)"
-                  : "1px solid rgba(31,26,14,0.1)",
-              opacity: active === i ? 1 : 0.75,
-              cursor: "pointer",
-            }}
-          />
-        ))}
-      </div>
+        <div
+          className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${variants.length}, minmax(0,1fr))` }}
+        >
+          {variants.map((v, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setActive(i)}
+              aria-label={`Изображение ${i + 1}`}
+              className="overflow-hidden transition-all"
+              style={{
+                aspectRatio: "1 / 1",
+                borderRadius: 12,
+                background: v,
+                border:
+                  active === i ? "2px solid var(--color-accent)" : "1px solid rgba(31,26,14,0.1)",
+                opacity: active === i ? 1 : 0.75,
+                cursor: "pointer",
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

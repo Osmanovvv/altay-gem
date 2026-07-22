@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Link,
-  createFileRoute,
-  useNavigate,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { Package, Search, X } from "lucide-react";
 
@@ -160,10 +156,7 @@ function SearchPage() {
             </h1>
 
             {/* Search input */}
-            <div
-              className="relative mt-6 w-full"
-              style={{ maxWidth: 600 }}
-            >
+            <div className="relative mt-6 w-full" style={{ maxWidth: 600 }}>
               <Search
                 size={20}
                 className="pointer-events-none absolute top-1/2 left-5 -translate-y-1/2"
@@ -231,13 +224,13 @@ function SearchPage() {
             >
               {debounced.trim() ? (
                 <>
-                  Найдено <strong style={{ color: "var(--color-text)" }}>{count}</strong>{" "}
-                  {word} по запросу «<span style={{ color: "var(--color-text)" }}>{debounced.trim()}</span>»
+                  Найдено <strong style={{ color: "var(--color-text)" }}>{count}</strong> {word} по
+                  запросу «<span style={{ color: "var(--color-text)" }}>{debounced.trim()}</span>»
                 </>
               ) : (
                 <>
-                  Всего в каталоге{" "}
-                  <strong style={{ color: "var(--color-text)" }}>{count}</strong> {word}
+                  Всего в каталоге <strong style={{ color: "var(--color-text)" }}>{count}</strong>{" "}
+                  {word}
                 </>
               )}
             </p>
@@ -317,13 +310,9 @@ function Chip({
         fontWeight: 600,
         padding: "8px 14px",
         minHeight: 36,
-        backgroundColor: active
-          ? "var(--color-accent)"
-          : "rgba(31,26,14,0.05)",
+        backgroundColor: active ? "var(--color-accent)" : "rgba(31,26,14,0.05)",
         color: active ? "var(--color-bg-dark)" : "var(--color-text)",
-        border: active
-          ? "1px solid var(--color-accent)"
-          : "1px solid rgba(31,26,14,0.08)",
+        border: active ? "1px solid var(--color-accent)" : "1px solid rgba(31,26,14,0.08)",
       }}
     >
       {label}

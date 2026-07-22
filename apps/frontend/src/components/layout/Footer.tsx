@@ -23,15 +23,22 @@ export function Footer() {
   const settings = useSettings();
   const apiCategories = useCategories();
   // Ссылки на категории каталога (ТЗ 6.1); фолбэк — без фильтра
-  const catalogLinks: Array<{ label: string; slug: string | null }> =
-    apiCategories.length
-      ? apiCategories.map((c) => ({ label: c.name, slug: c.slug }))
-      : [...CATALOG_FALLBACK];
+  const catalogLinks: Array<{ label: string; slug: string | null }> = apiCategories.length
+    ? apiCategories.map((c) => ({ label: c.name, slug: c.slug }))
+    : [...CATALOG_FALLBACK];
   const points = settings?.storePoints?.length
     ? settings.storePoints
     : [
-        { name: "Жемчужина Алтая", address: "Новосибирск, ул. Ленинградская 75/2", hours: "Ежедневно 9:00–20:00" },
-        { name: "Натуральные продукты", address: "Новосибирск, ул. Титова 32", hours: "Ежедневно 9:00–20:00" },
+        {
+          name: "Жемчужина Алтая",
+          address: "Новосибирск, ул. Ленинградская 75/2",
+          hours: "Ежедневно 9:00–20:00",
+        },
+        {
+          name: "Натуральные продукты",
+          address: "Новосибирск, ул. Титова 32",
+          hours: "Ежедневно 9:00–20:00",
+        },
       ];
   // Контакты из админки; фейковых заглушек не показываем — если заказчица
   // ещё не заполнила, строка контакта просто не рендерится (как в FindUs).
@@ -103,9 +110,8 @@ export function Footer() {
                 color: text,
               }}
             >
-              Натуральная продукция двух алтайских фермерских хозяйств. Бережно
-              собираем мёд, травы и дары тайги. Привозим в Новосибирск и доставляем
-              по всей России.
+              Натуральная продукция двух алтайских фермерских хозяйств. Бережно собираем мёд, травы
+              и дары тайги. Привозим в Новосибирск и доставляем по всей России.
             </p>
           </div>
 
@@ -152,7 +158,11 @@ export function Footer() {
             <h4 style={headingStyle}>Контакты</h4>
             <ul className="flex flex-col gap-3">
               {points.map((p) => (
-                <li key={p.address} className="flex items-start gap-2" style={{ fontSize: 14, lineHeight: 1.5 }}>
+                <li
+                  key={p.address}
+                  className="flex items-start gap-2"
+                  style={{ fontSize: 14, lineHeight: 1.5 }}
+                >
                   <MapPin size={16} style={{ color: accent, marginTop: 2, flexShrink: 0 }} />
                   <span>
                     {p.name}: {p.address}
@@ -207,7 +217,11 @@ export function Footer() {
           )}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <span>© Жемчужина Алтая, 2026</span>
-            <Link to="/privacy" className="transition-colors hover:text-white" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+            <Link
+              to="/privacy"
+              className="transition-colors hover:text-white"
+              style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}
+            >
               Политика конфиденциальности
             </Link>
           </div>

@@ -16,8 +16,7 @@ export const Route = createFileRoute("/reviews")({
       { title: "Отзывы покупателей — Жемчужина Алтая" },
       {
         name: "description",
-        content:
-          "Отзывы покупателей магазина «Жемчужина Алтая» на Яндекс.Картах и 2ГИС.",
+        content: "Отзывы покупателей магазина «Жемчужина Алтая» на Яндекс.Картах и 2ГИС.",
       },
       { property: "og:title", content: "Отзывы покупателей — Жемчужина Алтая" },
       {
@@ -64,20 +63,14 @@ function ReviewsPage() {
     <>
       <Header />
       <main style={{ background: "var(--color-bg-cream)" }}>
-        <PageHero
-          eyebrow="Отзывы"
-          title="Отзывы покупателей"
-          subtitle={subtitle}
-        />
+        <PageHero eyebrow="Отзывы" title="Отзывы покупателей" subtitle={subtitle} />
 
         <section className="mx-auto w-full max-w-6xl px-4 py-14 md:px-8 md:py-20">
           {/* Filter chips */}
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((f) => {
               const count =
-                f === "Все"
-                  ? REVIEWS.length
-                  : REVIEWS.filter((r) => r.source === f).length;
+                f === "Все" ? REVIEWS.length : REVIEWS.filter((r) => r.source === f).length;
               const active = filter === f;
               return (
                 <button
@@ -86,9 +79,7 @@ function ReviewsPage() {
                   onClick={() => setFilter(f)}
                   className="inline-flex items-center gap-2 rounded-full px-4 py-2 transition-colors"
                   style={{
-                    background: active
-                      ? "var(--color-bg-dark)"
-                      : "rgba(31,26,14,0.06)",
+                    background: active ? "var(--color-bg-dark)" : "rgba(31,26,14,0.06)",
                     color: active ? "var(--color-accent)" : "var(--color-text)",
                     border: `1px solid ${active ? "transparent" : "rgba(31,26,14,0.12)"}`,
                     fontFamily: "var(--font-body)",
@@ -100,9 +91,7 @@ function ReviewsPage() {
                   <span
                     className="rounded-full px-2 py-0.5"
                     style={{
-                      background: active
-                        ? "rgba(255,253,247,0.18)"
-                        : "rgba(31,26,14,0.08)",
+                      background: active ? "rgba(255,253,247,0.18)" : "rgba(31,26,14,0.08)",
                       fontSize: 12,
                       fontWeight: 600,
                     }}
@@ -134,10 +123,7 @@ function ReviewsPage() {
                       }}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <Quote
-                          size={22}
-                          style={{ color: "var(--color-accent-dark)" }}
-                        />
+                        <Quote size={22} style={{ color: "var(--color-accent-dark)" }} />
                         <span
                           className="inline-flex items-center rounded-full px-3 py-1"
                           style={{
@@ -145,8 +131,7 @@ function ReviewsPage() {
                               r.source === "Яндекс"
                                 ? "rgba(255,204,0,0.18)"
                                 : "rgba(34,166,72,0.16)",
-                            color:
-                              r.source === "Яндекс" ? "#7a5a00" : "#1f5a2c",
+                            color: r.source === "Яндекс" ? "#7a5a00" : "#1f5a2c",
                             fontFamily: "var(--font-body)",
                             fontSize: 12,
                             fontWeight: 600,
@@ -248,8 +233,7 @@ function ReviewsPage() {
           <div
             className="mt-16 overflow-hidden rounded-3xl p-8 md:p-12"
             style={{
-              background:
-                "linear-gradient(120deg, #1a3028 0%, #2d5a3f 100%)",
+              background: "linear-gradient(120deg, #1a3028 0%, #2d5a3f 100%)",
               color: "var(--color-text-on-dark)",
             }}
           >
@@ -275,8 +259,8 @@ function ReviewsPage() {
                     maxWidth: 520,
                   }}
                 >
-                  Ваше мнение помогает нам становиться лучше и помогает другим
-                  покупателям выбрать качественные товары с Алтая.
+                  Ваше мнение помогает нам становиться лучше и помогает другим покупателям выбрать
+                  качественные товары с Алтая.
                 </p>
               </div>
               {(yandexUrl || gisUrl) && (

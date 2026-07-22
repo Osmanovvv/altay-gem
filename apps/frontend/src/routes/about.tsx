@@ -19,8 +19,7 @@ export const Route = createFileRoute("/about")({
       { property: "og:title", content: "О компании - Жемчужина Алтая" },
       {
         property: "og:description",
-        content:
-          "История магазина, наши преимущества и адреса в Новосибирске.",
+        content: "История магазина, наши преимущества и адреса в Новосибирске.",
       },
     ],
   }),
@@ -97,21 +96,18 @@ function AboutPage() {
                 }}
               >
                 <p>
-                  «Жемчужина Алтая» работает с 2018 года. Начали с одной точки на
-                  левом берегу Новосибирска и небольшого ассортимента мёда и
-                  травяных сборов, привезённых напрямую из горных пасек.
+                  «Жемчужина Алтая» работает с 2018 года. Начали с одной точки на левом берегу
+                  Новосибирска и небольшого ассортимента мёда и травяных сборов, привезённых
+                  напрямую из горных пасек.
                 </p>
                 <p>
-                  Сегодня у нас два магазина в Новосибирске и более 2000
-                  наименований: мёд, чаи, сыры, мясные деликатесы, косметика,
-                  бальзамы и пантовая продукция. Все товары - от двух
-                  проверенных фермерских хозяйств: «Алтайская деревня» и
-                  «Шлегель».
+                  Сегодня у нас два магазина в Новосибирске и более 2000 наименований: мёд, чаи,
+                  сыры, мясные деликатесы, косметика, бальзамы и пантовая продукция. Все товары - от
+                  двух проверенных фермерских хозяйств: «Алтайская деревня» и «Шлегель».
                 </p>
                 <p>
-                  Мы лично знакомы с каждым производителем, бываем на пасеках и
-                  в сыроварнях, и отвечаем за качество всего, что стоит на наших
-                  полках.
+                  Мы лично знакомы с каждым производителем, бываем на пасеках и в сыроварнях, и
+                  отвечаем за качество всего, что стоит на наших полках.
                 </p>
               </div>
             </div>
@@ -283,13 +279,7 @@ function AboutPage() {
   );
 }
 
-function ShopLine({
-  icon,
-  children,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function ShopLine({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <li className="flex items-center gap-3">
       <span style={{ color: "var(--color-accent)" }}>{icon}</span>
@@ -308,8 +298,7 @@ function Section({
   return (
     <section
       style={{
-        backgroundColor:
-          variant === "muted" ? "#f3ece0" : "var(--color-bg-cream)",
+        backgroundColor: variant === "muted" ? "#f3ece0" : "var(--color-bg-cream)",
         padding: "72px 0",
       }}
     >
@@ -318,13 +307,7 @@ function Section({
   );
 }
 
-function SectionEyebrow({
-  center,
-  children,
-}: {
-  center?: boolean;
-  children: React.ReactNode;
-}) {
+function SectionEyebrow({ center, children }: { center?: boolean; children: React.ReactNode }) {
   return (
     <div className={center ? "text-center" : ""}>
       <span
@@ -343,13 +326,7 @@ function SectionEyebrow({
   );
 }
 
-function SectionTitle({
-  center,
-  children,
-}: {
-  center?: boolean;
-  children: React.ReactNode;
-}) {
+function SectionTitle({ center, children }: { center?: boolean; children: React.ReactNode }) {
   return (
     <h2
       className={`mt-2 text-3xl md:text-4xl ${center ? "text-center" : ""}`}

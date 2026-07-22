@@ -27,8 +27,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
       className="relative isolate flex items-center overflow-hidden"
       style={{
         minHeight: "90vh",
-        background:
-          "linear-gradient(160deg, var(--color-bg-dark) 0%, #0d1812 100%)",
+        background: "linear-gradient(160deg, var(--color-bg-dark) 0%, #0d1812 100%)",
       }}
     >
       <img
@@ -108,8 +107,8 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
               lineHeight: 1.6,
             }}
           >
-            Свой алтайский мёд, продукты пчеловодства, чаи, сыры, деликатесы и
-            натуральная косметика от проверенных производителей.
+            Свой алтайский мёд, продукты пчеловодства, чаи, сыры, деликатесы и натуральная косметика
+            от проверенных производителей.
           </motion.p>
 
           <motion.div
@@ -173,7 +172,9 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
             {(trust?.yandexRating != null || trust?.gisRating != null) && (
               <>
                 <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden style={{ color: "var(--color-accent-light)" }}>★</span>
+                  <span aria-hidden style={{ color: "var(--color-accent-light)" }}>
+                    ★
+                  </span>
                   {[
                     trust?.yandexRating != null ? `${trust.yandexRating} Яндекс.Карты` : null,
                     trust?.gisRating != null ? `${trust.gisRating} 2ГИС` : null,
@@ -181,11 +182,15 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
-                <span aria-hidden style={{ opacity: 0.4 }}>|</span>
+                <span aria-hidden style={{ opacity: 0.4 }}>
+                  |
+                </span>
               </>
             )}
             <span>Собственная пасека</span>
-            <span aria-hidden style={{ opacity: 0.4 }}>|</span>
+            <span aria-hidden style={{ opacity: 0.4 }}>
+              |
+            </span>
             <span>{trust?.note ?? "Два магазина в Новосибирске"}</span>
           </motion.div>
         </div>
@@ -228,8 +233,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
                   aria-hidden
                   className="absolute inset-0"
                   style={{
-                    background:
-                      "linear-gradient(to top, rgba(13,24,18,0.46), transparent 64%)",
+                    background: "linear-gradient(to top, rgba(13,24,18,0.46), transparent 64%)",
                   }}
                 />
                 <span
@@ -288,7 +292,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
                     style={{
                       color: "var(--color-accent)",
                       fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                      fontVariantNumeric: "tabular-nums",
                       fontSize: 30,
                       fontWeight: 700,
                       lineHeight: 1,

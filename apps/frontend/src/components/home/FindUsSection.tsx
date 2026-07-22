@@ -8,8 +8,16 @@ export function FindUsSection() {
   const points = settings?.storePoints?.length
     ? settings.storePoints
     : [
-        { name: "Жемчужина Алтая", address: "Новосибирск, ул. Ленинградская 75/2", hours: "Ежедневно 9:00–20:00" },
-        { name: "Натуральные продукты", address: "Новосибирск, ул. Титова 32", hours: "Ежедневно 9:00–20:00" },
+        {
+          name: "Жемчужина Алтая",
+          address: "Новосибирск, ул. Ленинградская 75/2",
+          hours: "Ежедневно 9:00–20:00",
+        },
+        {
+          name: "Натуральные продукты",
+          address: "Новосибирск, ул. Титова 32",
+          hours: "Ежедневно 9:00–20:00",
+        },
       ];
   const phone = settings?.contacts?.phone?.trim();
   const email = settings?.contacts?.email?.trim();
@@ -81,7 +89,10 @@ export function FindUsSection() {
                     color: "var(--color-text)",
                   }}
                 >
-                  <MapPin size={17} style={{ color: "var(--color-accent-dark)", flexShrink: 0, marginTop: 2 }} />
+                  <MapPin
+                    size={17}
+                    style={{ color: "var(--color-accent-dark)", flexShrink: 0, marginTop: 2 }}
+                  />
                   {p.address}
                 </p>
                 <p

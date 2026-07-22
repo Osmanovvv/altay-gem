@@ -60,8 +60,7 @@ function PromoIndexPage() {
                     background: promo.bgColor,
                     color: promo.accentColor,
                     minHeight: 360,
-                    boxShadow:
-                      "0 10px 30px -12px rgba(20,15,5,0.35)",
+                    boxShadow: "0 10px 30px -12px rgba(20,15,5,0.35)",
                     transition: "box-shadow 0.4s ease",
                   }}
                 >
@@ -167,4 +166,3 @@ function PromoIndexPage() {
     </>
   );
 }
-

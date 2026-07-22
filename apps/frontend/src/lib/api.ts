@@ -18,8 +18,7 @@ import type { Product } from "@/data/products";
 import type { Category } from "@/data/categories";
 
 export const API_URL: string =
-  (import.meta.env?.VITE_API_URL as string | undefined) ??
-  "http://localhost:3000/api/v1";
+  (import.meta.env?.VITE_API_URL as string | undefined) ?? "http://localhost:3000/api/v1";
 
 // ---------- типы ответов API ----------
 
@@ -122,7 +121,13 @@ export interface ApiReviews {
 
 export interface ApiSettings {
   contacts: { phone?: string; email?: string } | null;
-  storePoints: Array<{ name: string; address: string; hours?: string; phone?: string; mapUrl?: string }>;
+  storePoints: Array<{
+    name: string;
+    address: string;
+    hours?: string;
+    phone?: string;
+    mapUrl?: string;
+  }>;
   socialLinks: Array<{ label: string; url: string }>;
   requisites: string | null;
   privacyPolicy: string | null;
@@ -318,9 +323,7 @@ export function toProduct(c: ApiCard): Product {
     inStock: c.inStock,
     isPerishable: c.isPerishable,
     badges: c.badges,
-    image: c.photo
-      ? `url("${c.photo}") center/cover no-repeat, ${grad}`
-      : grad,
+    image: c.photo ? `url("${c.photo}") center/cover no-repeat, ${grad}` : grad,
     shortDescription: c.shortDescription ?? "",
   };
 }

@@ -1,13 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import {
-  AlertTriangle,
-  CreditCard,
-  MapPin,
-  RotateCcw,
-  Store,
-  Truck,
-} from "lucide-react";
+import { AlertTriangle, CreditCard, MapPin, RotateCcw, Store, Truck } from "lucide-react";
 
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -248,10 +241,7 @@ function DeliveryPage() {
                   <tr
                     key={r.label}
                     style={{
-                      borderTop:
-                        i === 0
-                          ? "none"
-                          : "1px solid rgba(31,26,14,0.06)",
+                      borderTop: i === 0 ? "none" : "1px solid rgba(31,26,14,0.06)",
                     }}
                   >
                     <Td bold>{r.label}</Td>
@@ -355,9 +345,8 @@ function DeliveryPage() {
                 color: "var(--color-text-muted)",
               }}
             >
-              Онлайн-оплата проходит на защищённой платёжной странице; чек
-              приходит на e-mail или телефон. Оплата наличными и картой при
-              получении доступна для самовывоза.
+              Онлайн-оплата проходит на защищённой платёжной странице; чек приходит на e-mail или
+              телефон. Оплата наличными и картой при получении доступна для самовывоза.
             </p>
           </div>
         </Section>
@@ -371,14 +360,12 @@ function DeliveryPage() {
               title="Скоропортящиеся товары"
             >
               <p>
-                Сыры, охлаждённые мясные деликатесы и другие скоропортящиеся
-                позиции доставляются только по Новосибирску - курьером в
-                охлаждённой упаковке.
+                Сыры, охлаждённые мясные деликатесы и другие скоропортящиеся позиции доставляются
+                только по Новосибирску - курьером в охлаждённой упаковке.
               </p>
               <p>
-                Отправка такими товарами в другие регионы невозможна: при
-                оформлении заказа варианты доставки по России для них будут
-                недоступны.
+                Отправка такими товарами в другие регионы невозможна: при оформлении заказа варианты
+                доставки по России для них будут недоступны.
               </p>
             </InfoCard>
             <InfoCard
@@ -388,13 +375,12 @@ function DeliveryPage() {
               title="Возврат и обмен"
             >
               <p>
-                Если товар не подошёл - сообщите нам в течение 7 дней после
-                получения. Заменим или вернём деньги тем же способом, которым
-                была произведена оплата.
+                Если товар не подошёл - сообщите нам в течение 7 дней после получения. Заменим или
+                вернём деньги тем же способом, которым была произведена оплата.
               </p>
               <p>
-                Продовольственные товары надлежащего качества возврату не
-                подлежат - такие правила Роспотребнадзора.
+                Продовольственные товары надлежащего качества возврату не подлежат - такие правила
+                Роспотребнадзора.
               </p>
             </InfoCard>
           </div>
@@ -449,8 +435,7 @@ function Section({
   return (
     <section
       style={{
-        backgroundColor:
-          variant === "muted" ? "#f3ece0" : "var(--color-bg-cream)",
+        backgroundColor: variant === "muted" ? "#f3ece0" : "var(--color-bg-cream)",
         padding: "72px 0",
       }}
     >
@@ -493,13 +478,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Th({
-  children,
-  align,
-}: {
-  children: React.ReactNode;
-  align?: "right";
-}) {
+function Th({ children, align }: { children: React.ReactNode; align?: "right" }) {
   return (
     <th
       style={{
@@ -571,9 +550,7 @@ function InfoCard({
       style={{
         scrollMarginTop: 96,
         backgroundColor: isWarn ? "rgba(232,180,79,0.14)" : "#fffdf7",
-        border: `1px solid ${
-          isWarn ? "rgba(232,180,79,0.45)" : "rgba(31,26,14,0.06)"
-        }`,
+        border: `1px solid ${isWarn ? "rgba(232,180,79,0.45)" : "rgba(31,26,14,0.06)"}`,
         borderRadius: 20,
         padding: 28,
         boxShadow: isWarn ? "none" : "var(--shadow-card)",
@@ -585,9 +562,7 @@ function InfoCard({
           style={{
             width: 48,
             height: 48,
-            backgroundColor: isWarn
-              ? "rgba(232,180,79,0.35)"
-              : "rgba(59,110,74,0.12)",
+            backgroundColor: isWarn ? "rgba(232,180,79,0.35)" : "rgba(59,110,74,0.12)",
             color: isWarn ? "var(--color-accent-dark)" : "#3b6e4a",
           }}
         >

@@ -62,7 +62,7 @@ jobs:
         run: npm run build
 
   frontend:
-    name: frontend (build)
+    name: frontend (lint, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -74,7 +74,18 @@ jobs:
           bun-version-file: .bun-version
       - name: Install
         run: bun install --frozen-lockfile
-      # Линт фронта временно вне CI: унаследованный код с CRLF даёт тысячи
-      # format-ошибок. Включим после нормализации line endings (.gitattributes).
+      - name: Lint
+        run: bun run lint
       - name: Build
         run: bun run build
+
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

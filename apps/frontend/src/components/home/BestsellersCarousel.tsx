@@ -20,8 +20,8 @@ interface Bestseller {
 }
 
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
-  "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
-  "Новинка": { bg: "var(--color-success)", color: "#f5efe0" },
+  Хит: { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
+  Новинка: { bg: "var(--color-success)", color: "#f5efe0" },
   "-15%": { bg: "var(--color-error)", color: "#f5efe0" },
   "-20%": { bg: "var(--color-error)", color: "#f5efe0" },
 };
@@ -221,15 +221,15 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                   }}
                 >
                   {p.image && (
-                  <img
-                    src={p.image}
-                    alt={p.imageAlt}
-                    width={640}
-                    height={640}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                    <img
+                      src={p.image}
+                      alt={p.imageAlt}
+                      width={640}
+                      height={640}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
                   )}
                   <span
                     aria-hidden
@@ -250,8 +250,12 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                         textTransform: "uppercase",
                         padding: "5px 10px",
                         borderRadius: 999,
-                        backgroundColor: (BADGE_STYLES[badge] ?? {bg: "var(--color-error)", color: "#f5efe0"}).bg,
-                        color: (BADGE_STYLES[badge] ?? {bg: "var(--color-error)", color: "#f5efe0"}).color,
+                        backgroundColor: (
+                          BADGE_STYLES[badge] ?? { bg: "var(--color-error)", color: "#f5efe0" }
+                        ).bg,
+                        color: (
+                          BADGE_STYLES[badge] ?? { bg: "var(--color-error)", color: "#f5efe0" }
+                        ).color,
                       }}
                     >
                       {badge}
@@ -304,19 +308,14 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
 
                   {/* Фиксированная высота строки цены — карточки с/без скидки не должны
                       "прыгать" по-разному, поэтому бейдж скидки всегда в этой же строке. */}
-                  <div
-                    className="mt-4 flex flex-wrap items-center gap-2"
-                    style={{ minHeight: 30 }}
-                  >
+                  <div className="mt-4 flex flex-wrap items-center gap-2" style={{ minHeight: 30 }}>
                     <span
                       style={{
                         fontFamily: "var(--font-body)",
                         fontVariantNumeric: "tabular-nums",
                         fontWeight: 600,
                         fontSize: 24,
-                        color: p.oldPrice
-                          ? "var(--color-accent-dark)"
-                          : "var(--color-text)",
+                        color: p.oldPrice ? "var(--color-accent-dark)" : "var(--color-text)",
                         lineHeight: 1,
                       }}
                     >
@@ -326,7 +325,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                       <span
                         style={{
                           fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                          fontVariantNumeric: "tabular-nums",
                           fontSize: 13,
                           color: "var(--color-text-muted)",
                           textDecoration: "line-through",
@@ -367,9 +366,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                         >
                           <button
                             type="button"
-                            onClick={() =>
-                              updateQuantity(p.id, cartItem.quantity - 1)
-                            }
+                            onClick={() => updateQuantity(p.id, cartItem.quantity - 1)}
                             disabled={cartItem.quantity <= 1}
                             aria-label="Уменьшить количество"
                             className="inline-flex items-center justify-center rounded-full disabled:opacity-40"
@@ -391,9 +388,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                           </span>
                           <button
                             type="button"
-                            onClick={() =>
-                              updateQuantity(p.id, cartItem.quantity + 1)
-                            }
+                            onClick={() => updateQuantity(p.id, cartItem.quantity + 1)}
                             aria-label="Увеличить количество"
                             className="inline-flex items-center justify-center rounded-full"
                             style={{
@@ -425,8 +420,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                           transition: "var(--transition-smooth)",
                         }}
                       >
-                        <ShoppingBag size={16} />
-                        В корзину
+                        <ShoppingBag size={16} />В корзину
                       </button>
                     );
                   })()}

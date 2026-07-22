@@ -13,12 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/context/CartContext";
 import { SettingsProvider } from "@/context/SettingsContext";
-import {
-  fetchCategories,
-  fetchSettings,
-  type ApiCategory,
-  type ApiSettings,
-} from "@/lib/api";
+import { fetchCategories, fetchSettings, type ApiCategory, type ApiSettings } from "@/lib/api";
 import { Toaster } from "sonner";
 
 function NotFoundComponent() {
@@ -57,7 +52,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           Страница не загрузилась
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Что-то пошло не так на нашей стороне. Попробуйте обновить страницу или вернуться на главную.
+          Что-то пошло не так на нашей стороне. Попробуйте обновить страницу или вернуться на
+          главную.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -99,16 +95,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Жемчужина Алтая - Натуральные продукты с Алтая" },
-      { name: "description", content: "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России." },
+      {
+        name: "description",
+        content:
+          "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России.",
+      },
       { property: "og:title", content: "Жемчужина Алтая - Натуральные продукты с Алтая" },
-      { property: "og:description", content: "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России." },
+      {
+        property: "og:description",
+        content:
+          "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Жемчужина Алтая - Натуральные продукты с Алтая" },
-      { name: "twitter:description", content: "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России." },
+      {
+        name: "twitter:description",
+        content:
+          "Натуральный мед, деликатесы из марала, травяные чаи и косметика. Два магазина в Новосибирске, доставка по России.",
+      },
       // Абсолютный URL обязателен для OG-скрейперов; боевой домен заказчика.
-      { property: "og:image", content: "https://ecomarket-altai.ru/img/stock/u-1464822759023-fed622ff2c3b.jpg" },
-      { name: "twitter:image", content: "https://ecomarket-altai.ru/img/stock/u-1464822759023-fed622ff2c3b.jpg" },
+      {
+        property: "og:image",
+        content: "https://ecomarket-altai.ru/img/stock/u-1464822759023-fed622ff2c3b.jpg",
+      },
+      {
+        name: "twitter:image",
+        content: "https://ecomarket-altai.ru/img/stock/u-1464822759023-fed622ff2c3b.jpg",
+      },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
@@ -142,11 +156,11 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider value={settings} categories={categories}>
-      <CartProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster position="top-center" richColors closeButton />
-      </CartProvider>
+        <CartProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <Toaster position="top-center" richColors closeButton />
+        </CartProvider>
       </SettingsProvider>
     </QueryClientProvider>
   );

@@ -15,9 +15,7 @@ import { useCart } from "@/context/CartContext";
 export const Route = createFileRoute("/promo/$slug")({
   head: ({ loaderData }) => {
     const promo = (loaderData as { promo?: FrontPromo } | undefined)?.promo;
-    const title = promo
-      ? `${promo.title} - Жемчужина Алтая`
-      : "Акция - Жемчужина Алтая";
+    const title = promo ? `${promo.title} - Жемчужина Алтая` : "Акция - Жемчужина Алтая";
     const description = promo?.description ?? "Подробности акции.";
     return {
       meta: [

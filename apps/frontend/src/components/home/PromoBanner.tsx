@@ -23,14 +23,8 @@ export function PromoBanner({ banners }: PromoBannerProps) {
   const [paused, setPaused] = useState(false);
   const count = banners.length;
 
-  const next = useCallback(
-    () => setIndex((i) => (i + 1) % Math.max(count, 1)),
-    [count],
-  );
-  const prev = useCallback(
-    () => setIndex((i) => (i - 1 + count) % Math.max(count, 1)),
-    [count],
-  );
+  const next = useCallback(() => setIndex((i) => (i + 1) % Math.max(count, 1)), [count]);
+  const prev = useCallback(() => setIndex((i) => (i - 1 + count) % Math.max(count, 1)), [count]);
 
   useEffect(() => {
     if (paused || count < 2) return;
@@ -97,15 +91,15 @@ export function PromoBanner({ banners }: PromoBannerProps) {
               }}
             >
               {promo.image && (
-              <img
-                src={promo.image}
-                alt={promo.imageAlt}
-                width={960}
-                height={540}
-                loading="lazy"
-                decoding="async"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
+                <img
+                  src={promo.image}
+                  alt={promo.imageAlt}
+                  width={960}
+                  height={540}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
               )}
               <span
                 aria-hidden
@@ -190,7 +184,6 @@ export function PromoBanner({ banners }: PromoBannerProps) {
                   <ArrowRight size={16} />
                 </span>
               </div>
-
             </MotionLink>
           </AnimatePresence>
 
@@ -244,10 +237,7 @@ export function PromoBanner({ banners }: PromoBannerProps) {
                   height: 8,
                   width: i === index ? 28 : 8,
                   borderRadius: 999,
-                  backgroundColor:
-                    i === index
-                      ? "var(--color-accent)"
-                      : "rgba(31,26,14,0.2)",
+                  backgroundColor: i === index ? "var(--color-accent)" : "rgba(31,26,14,0.2)",
                   transition: "var(--transition-smooth)",
                 }}
               />

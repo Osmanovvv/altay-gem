@@ -144,8 +144,7 @@ export function AboutHoneyTeaser({ section }: AboutHoneyTeaserProps) {
             aria-hidden
             className="absolute inset-0"
             style={{
-              background:
-                "linear-gradient(180deg, rgba(15,30,24,0.08), rgba(15,30,24,0.48))",
+              background: "linear-gradient(180deg, rgba(15,30,24,0.08), rgba(15,30,24,0.48))",
             }}
           />
           <div
@@ -165,8 +164,8 @@ export function AboutHoneyTeaser({ section }: AboutHoneyTeaserProps) {
                 margin: 0,
               }}
             >
-              Отбираем партии вручную и храним мёд в условиях, где он сохраняет
-              аромат, плотность и природную пользу.
+              Отбираем партии вручную и храним мёд в условиях, где он сохраняет аромат, плотность и
+              природную пользу.
             </p>
           </div>
         </motion.div>

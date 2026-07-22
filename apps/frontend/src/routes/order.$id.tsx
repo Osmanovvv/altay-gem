@@ -154,9 +154,7 @@ function OrderPage() {
             <Line
               label="Доставка"
               value={
-                order.totals.deliveryRub === 0
-                  ? "Бесплатно"
-                  : formatPrice(order.totals.deliveryRub)
+                order.totals.deliveryRub === 0 ? "Бесплатно" : formatPrice(order.totals.deliveryRub)
               }
             />
             <div className="mt-2 flex items-baseline justify-between">

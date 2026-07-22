@@ -1,11 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  fetchCategories,
-  fetchHome,
-  toCategory,
-  toProduct,
-} from "@/lib/api";
+import { fetchCategories, fetchHome, toCategory, toProduct } from "@/lib/api";
 
 import { Layout } from "@/components/layout/Layout";
 import { AboutHoneyTeaser } from "@/components/home/AboutHoneyTeaser";
@@ -19,10 +14,7 @@ import { WhyChooseUsSection } from "@/components/home/WhyChooseUsSection";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [home, categories] = await Promise.all([
-      fetchHome(),
-      fetchCategories(),
-    ]);
+    const [home, categories] = await Promise.all([fetchHome(), fetchCategories()]);
     return { home, categories: categories.map(toCategory) };
   },
   head: () => ({

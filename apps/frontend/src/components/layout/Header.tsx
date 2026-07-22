@@ -60,11 +60,7 @@ export function Header({ phone: phoneProp }: HeaderProps) {
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:h-20 md:px-8">
           {/* Logo */}
-          <Link
-            to="/"
-            className="flex items-baseline gap-2"
-            style={{ minHeight: 44 }}
-          >
+          <Link to="/" className="flex items-baseline gap-2" style={{ minHeight: 44 }}>
             <span
               style={{
                 fontFamily: "var(--font-display)",
@@ -236,9 +232,7 @@ export function Header({ phone: phoneProp }: HeaderProps) {
                     style={{ color: "var(--color-accent)", minHeight: 44 }}
                   >
                     <Phone size={18} />
-                    <span style={{ fontFamily: "var(--font-body)", fontWeight: 500 }}>
-                      {phone}
-                    </span>
+                    <span style={{ fontFamily: "var(--font-body)", fontWeight: 500 }}>{phone}</span>
                   </a>
                 </div>
               )}

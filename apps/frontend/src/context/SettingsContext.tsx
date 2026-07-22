@@ -21,9 +21,7 @@ export function SettingsProvider({
 }) {
   return (
     <SettingsContext.Provider value={value}>
-      <CategoriesContext.Provider value={categories}>
-        {children}
-      </CategoriesContext.Provider>
+      <CategoriesContext.Provider value={categories}>{children}</CategoriesContext.Provider>
     </SettingsContext.Provider>
   );
 }

@@ -15,13 +15,7 @@ import { ProductGrid } from "@/components/catalog/ProductGrid";
 import type { Product } from "@/data/products";
 
 import { useCart } from "@/context/CartContext";
-import {
-  fetchCatalog,
-  fetchCategories,
-  toCategory,
-  toProduct,
-  type CatalogQuery,
-} from "@/lib/api";
+import { fetchCatalog, fetchCategories, toCategory, toProduct, type CatalogQuery } from "@/lib/api";
 
 const SORT_MAP: Record<SortKey, CatalogQuery["sort"]> = {
   "price-asc": "price_asc",
@@ -166,9 +160,7 @@ function CatalogPage() {
             {activeCategory && (
               <>
                 <ChevronRight size={14} />
-                <span style={{ color: "var(--color-text)" }}>
-                  {activeCategory.name}
-                </span>
+                <span style={{ color: "var(--color-text)" }}>{activeCategory.name}</span>
               </>
             )}
             {filters.subcategory && (
@@ -231,17 +223,17 @@ function CatalogPage() {
             {/* Sidebar desktop */}
             <div className="hidden lg:block">
               <div className="sticky top-24">
-                <CatalogSidebar filters={filters} onChange={updateFilters} categories={categories} />
+                <CatalogSidebar
+                  filters={filters}
+                  onChange={updateFilters}
+                  categories={categories}
+                />
               </div>
             </div>
 
             {/* Main */}
             <div className="flex min-w-0 flex-col gap-5">
-              <CatalogFilters
-                count={totalCount}
-                sort={sort}
-                onSortChange={setSort}
-              />
+              <CatalogFilters count={totalCount} sort={sort} onSortChange={setSort} />
 
               <ProductGrid products={pageItems} onAdd={onAdd} />
 
@@ -266,12 +258,8 @@ function CatalogPage() {
                           fontFamily: "var(--font-body)",
                           fontWeight: 600,
                           fontSize: 14,
-                          backgroundColor: active
-                            ? "var(--color-accent)"
-                            : "transparent",
-                          color: active
-                            ? "var(--color-bg-dark)"
-                            : "var(--color-text)",
+                          backgroundColor: active ? "var(--color-accent)" : "transparent",
+                          color: active ? "var(--color-bg-dark)" : "var(--color-text)",
                           border: active
                             ? "1px solid var(--color-accent)"
                             : "1px solid rgba(31,26,14,0.12)",
@@ -334,7 +322,11 @@ function CatalogPage() {
                 </button>
               </div>
               <div className="px-4 pb-8">
-                <CatalogSidebar filters={filters} onChange={updateFilters} categories={categories} />
+                <CatalogSidebar
+                  filters={filters}
+                  onChange={updateFilters}
+                  categories={categories}
+                />
               </div>
             </motion.aside>
           </>

@@ -134,9 +134,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = cur.find((i) => i.product.id === product.id);
       if (existing) {
         return cur.map((i) =>
-          i.product.id === product.id
-            ? { ...i, quantity: i.quantity + qty }
-            : i,
+          i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i,
         );
       }
       return [...cur, { product, quantity: qty }];
@@ -150,11 +148,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = useCallback((productId: string, qty: number) => {
     setItems((cur) =>
       cur
-        .map((i) =>
-          i.product.id === productId
-            ? { ...i, quantity: Math.max(1, qty) }
-            : i,
-        )
+        .map((i) => (i.product.id === productId ? { ...i, quantity: Math.max(1, qty) } : i))
         .filter((i) => i.quantity > 0),
     );
   }, []);
@@ -179,24 +173,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setPromoError(null);
   }, []);
 
-  const getPromoDiscount = useCallback(
-    () => promoDiscountRub,
-    [promoDiscountRub],
-  );
+  const getPromoDiscount = useCallback(() => promoDiscountRub, [promoDiscountRub]);
 
   const getCartTotal = useCallback(
-    () =>
-      items.reduce((sum, i) => sum + i.product.price * i.quantity, 0) -
-      promoDiscountRub,
+    () => items.reduce((sum, i) => sum + i.product.price * i.quantity, 0) - promoDiscountRub,
     [items, promoDiscountRub],
   );
 
   const getCartOldTotal = useCallback(
-    () =>
-      items.reduce(
-        (sum, i) => sum + (i.product.oldPrice ?? i.product.price) * i.quantity,
-        0,
-      ),
+    () => items.reduce((sum, i) => sum + (i.product.oldPrice ?? i.product.price) * i.quantity, 0),
     [items],
   );
 
@@ -205,15 +190,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [getCartOldTotal, getCartTotal],
   );
 
-  const getCartCount = useCallback(
-    () => items.reduce((sum, i) => sum + i.quantity, 0),
-    [items],
-  );
+  const getCartCount = useCallback(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
 
-  const hasPerishable = useCallback(
-    () => items.some((i) => i.product.isPerishable),
-    [items],
-  );
+  const hasPerishable = useCallback(() => items.some((i) => i.product.isPerishable), [items]);
 
   const value = useMemo<CartContextValue>(
     () => ({

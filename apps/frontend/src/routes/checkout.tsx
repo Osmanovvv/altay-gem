@@ -18,12 +18,7 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart } from "@/context/CartContext";
-import {
-  ApiError,
-  createOrder,
-  quoteDelivery,
-  type ApiDeliveryQuote,
-} from "@/lib/api";
+import { ApiError, createOrder, quoteDelivery, type ApiDeliveryQuote } from "@/lib/api";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -43,11 +38,7 @@ const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
 type Step = 0 | 1 | 2;
 const STEPS = ["Контакты", "Доставка", "Подтверждение"] as const;
 
-type DeliveryMethod =
-  | "pickup_leningradskaya"
-  | "pickup_titova"
-  | "courier_nsk"
-  | "russia";
+type DeliveryMethod = "pickup_leningradskaya" | "pickup_titova" | "courier_nsk" | "russia";
 
 type PaymentMethod = "online" | "cash_on_pickup" | "card_on_pickup";
 
@@ -135,9 +126,7 @@ function CheckoutPage() {
 
   // Покупателю — название товара, а не внутренний id/uuid из ответа API.
   const nameOf = (id?: string) =>
-    items.find((i) => i.product.id === id)?.product.name ??
-    id ??
-    "товар";
+    items.find((i) => i.product.id === id)?.product.name ?? id ?? "товар";
 
   // Наличные/карта "при получении" физически возможны только на самовывозе —
   // для курьера/СДЭК остаётся только онлайн-оплата. Если сменили способ
@@ -330,8 +319,7 @@ function CheckoutPage() {
             return `«${nameOf(d.id)}»: доступно только ${d.availableQty ?? 0}`;
           if (d.reason === "price_changed")
             return `«${nameOf(d.id)}»: цена изменилась (теперь ${d.actualPriceRub} ₽)`;
-          if (d.reason === "unknown_item")
-            return `«${nameOf(d.id)}»: товар недоступен`;
+          if (d.reason === "unknown_item") return `«${nameOf(d.id)}»: товар недоступен`;
           return d.reason ?? "";
         });
         toast.error(String(err.message), {
@@ -387,11 +375,7 @@ function CheckoutPage() {
               <Stepper step={step} />
 
               <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_340px] lg:gap-8">
-                <form
-                  onSubmit={submitOrder}
-                  className="flex flex-col gap-5"
-                  noValidate
-                >
+                <form onSubmit={submitOrder} className="flex flex-col gap-5" noValidate>
                   <AnimatePresence mode="wait">
                     {step === 0 && (
                       <StepCard key="contacts" title="Контактные данные">
@@ -430,9 +414,7 @@ function CheckoutPage() {
                         <Field
                           label="Email"
                           hint={
-                            form.payment === "online"
-                              ? "сюда придёт чек об оплате"
-                              : "по желанию"
+                            form.payment === "online" ? "сюда придёт чек об оплате" : "по желанию"
                           }
                           error={errors.email}
                           input={
@@ -525,9 +507,7 @@ function CheckoutPage() {
                             icon={<Banknote size={18} />}
                             title="Наличными при получении"
                             description={
-                              isPickup
-                                ? "Оплата в магазине"
-                                : "Доступно только при самовывозе"
+                              isPickup ? "Оплата в магазине" : "Доступно только при самовывозе"
                             }
                           />
                           <RadioCard
@@ -578,8 +558,8 @@ function CheckoutPage() {
                                     color: "var(--color-text)",
                                   }}
                                 >
-                                  «{nameOf(d.id)}»: доступно {d.availableQty} {unit} (в
-                                  корзине {inCart})
+                                  «{nameOf(d.id)}»: доступно {d.availableQty} {unit} (в корзине{" "}
+                                  {inCart})
                                   {d.otherPickup &&
                                     ` — есть в пункте ${PICKUP_SHORT[d.otherPickup.point]}: ${d.otherPickup.availableQty} ${unit}`}
                                 </span>
@@ -592,8 +572,7 @@ function CheckoutPage() {
                                 color: "var(--color-text-muted)",
                               }}
                             >
-                              Выберите другой способ получения или уменьшите количество
-                              в корзине.
+                              Выберите другой способ получения или уменьшите количество в корзине.
                             </span>
                           </div>
                         )}
@@ -610,9 +589,7 @@ function CheckoutPage() {
                         <ReviewBlock label="Доставка">
                           <div>{deliveryLabel}</div>
                           {form.address && (
-                            <div style={{ color: "var(--color-text-muted)" }}>
-                              {form.address}
-                            </div>
+                            <div style={{ color: "var(--color-text-muted)" }}>{form.address}</div>
                           )}
                         </ReviewBlock>
                         <ReviewBlock label="Оплата">
@@ -678,8 +655,7 @@ function CheckoutPage() {
                           textDecoration: "none",
                         }}
                       >
-                        <ArrowLeft size={16} />
-                        В корзину
+                        <ArrowLeft size={16} />В корзину
                       </Link>
                     )}
 
@@ -776,10 +752,7 @@ function Stepper({ step }: { step: Step }) {
         const done = i < step;
         return (
           <li key={label} className="flex flex-1 items-center gap-2">
-            <div
-              className="flex items-center gap-2"
-              style={{ minWidth: 0 }}
-            >
+            <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
               <span
                 className="inline-flex items-center justify-center rounded-full transition-colors"
                 style={{
@@ -808,9 +781,7 @@ function Stepper({ step }: { step: Step }) {
                   fontFamily: "var(--font-body)",
                   fontSize: 13,
                   fontWeight: active || done ? 600 : 500,
-                  color: active
-                    ? "var(--color-bg-dark)"
-                    : "var(--color-text-muted)",
+                  color: active ? "var(--color-bg-dark)" : "var(--color-text-muted)",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -821,9 +792,7 @@ function Stepper({ step }: { step: Step }) {
               <span
                 className="h-px flex-1"
                 style={{
-                  backgroundColor: done
-                    ? "var(--color-bg-dark)"
-                    : "rgba(31,26,14,0.12)",
+                  backgroundColor: done ? "var(--color-bg-dark)" : "rgba(31,26,14,0.12)",
                 }}
               />
             )}
@@ -908,9 +877,7 @@ function Field({
         {label}
         {required && <span style={{ color: "var(--color-error)" }}>*</span>}
         {hint && (
-          <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>
-            ({hint})
-          </span>
+          <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>({hint})</span>
         )}
       </span>
       {styledInput}
@@ -975,9 +942,7 @@ function RadioCard({
         borderRadius: 14,
         padding: "14px 16px",
         backgroundColor: checked ? "rgba(232,180,79,0.14)" : "#fff",
-        border: `1.5px solid ${
-          checked ? "var(--color-accent)" : "rgba(31,26,14,0.1)"
-        }`,
+        border: `1.5px solid ${checked ? "var(--color-accent)" : "rgba(31,26,14,0.1)"}`,
       }}
     >
       <span
@@ -985,9 +950,7 @@ function RadioCard({
         style={{
           width: 32,
           height: 32,
-          backgroundColor: checked
-            ? "var(--color-accent)"
-            : "rgba(31,26,14,0.06)",
+          backgroundColor: checked ? "var(--color-accent)" : "rgba(31,26,14,0.06)",
           color: checked ? "var(--color-bg-dark)" : "var(--color-text-muted)",
         }}
       >
@@ -1032,13 +995,7 @@ function RadioCard({
   );
 }
 
-function ReviewBlock({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function ReviewBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div
       style={{
@@ -1088,7 +1045,7 @@ function OrderSummary({
       <h3
         style={{
           fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+          fontVariantNumeric: "tabular-nums",
           fontSize: 20,
           fontWeight: 600,
           color: "var(--color-text)",
@@ -1126,7 +1083,7 @@ function OrderSummary({
         <span
           style={{
             fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+            fontVariantNumeric: "tabular-nums",
             fontSize: 28,
             fontWeight: 700,
             color: "var(--color-accent)",
@@ -1140,15 +1097,7 @@ function OrderSummary({
   );
 }
 
-function SummaryLine({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
+function SummaryLine({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1">
       <span

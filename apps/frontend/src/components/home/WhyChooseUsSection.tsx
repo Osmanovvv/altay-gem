@@ -38,10 +38,7 @@ export function WhyChooseUsSection({ advantages }: WhyChooseUsProps) {
         }))
       : REASONS;
   return (
-    <section
-      aria-labelledby="why-title"
-      style={{ backgroundColor: "#fffdf7", padding: "80px 0" }}
-    >
+    <section aria-labelledby="why-title" style={{ backgroundColor: "#fffdf7", padding: "80px 0" }}>
       <div className="mx-auto max-w-7xl px-4 md:px-8">
         <div className="mb-10 max-w-2xl">
           <span

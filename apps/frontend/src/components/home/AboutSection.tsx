@@ -57,10 +57,9 @@ export function AboutSection() {
               maxWidth: 560,
             }}
           >
-            Два магазина в Новосибирске. Работаем напрямую с алтайскими
-            производителями - «Алтайская деревня» и «Шлегель». Более 2000
-            наименований натуральной продукции: от мёда и сыров до косметики и
-            бальзамов. Каждый продукт проверен и сертифицирован.
+            Два магазина в Новосибирске. Работаем напрямую с алтайскими производителями - «Алтайская
+            деревня» и «Шлегель». Более 2000 наименований натуральной продукции: от мёда и сыров до
+            косметики и бальзамов. Каждый продукт проверен и сертифицирован.
           </p>
 
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -127,16 +126,11 @@ export function AboutSection() {
             style={{
               aspectRatio: "5 / 4",
               borderRadius: 24,
-              background:
-                "linear-gradient(180deg, #faf7f2 0%, #efe7d6 100%)",
+              background: "linear-gradient(180deg, #faf7f2 0%, #efe7d6 100%)",
               boxShadow: "var(--shadow-card)",
             }}
           >
-            <svg
-              aria-hidden
-              viewBox="0 0 600 480"
-              className="absolute inset-0 h-full w-full"
-            >
+            <svg aria-hidden viewBox="0 0 600 480" className="absolute inset-0 h-full w-full">
               {/* Sun */}
               <circle cx="430" cy="150" r="44" fill="#e8b44f" opacity="0.55" />
 

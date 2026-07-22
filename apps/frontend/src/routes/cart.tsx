@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertTriangle,
-  Minus,
-  Plus,
-  ShoppingBag,
-  ShoppingCart,
-  Trash2,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Minus, Plus, ShoppingBag, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -221,7 +213,7 @@ function CartPage() {
               <span
                 style={{
                   fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                  fontVariantNumeric: "tabular-nums",
                   fontSize: 24,
                   fontWeight: 700,
                   color: "var(--color-accent)",
@@ -361,7 +353,7 @@ function CartItemRow({
           <span
             style={{
               fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+              fontVariantNumeric: "tabular-nums",
               fontSize: 13,
               color: "var(--color-text-muted)",
             }}
@@ -407,7 +399,7 @@ function CartItemRow({
             <span
               style={{
                 fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
                 fontWeight: 700,
                 fontSize: 18,
                 color: "var(--color-text)",
@@ -420,7 +412,7 @@ function CartItemRow({
               <span
                 style={{
                   fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                  fontVariantNumeric: "tabular-nums",
                   fontSize: 12,
                   color: "var(--color-text-muted)",
                   textDecoration: "line-through",
@@ -440,7 +432,7 @@ function CartItemRow({
           <span
             style={{
               fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+              fontVariantNumeric: "tabular-nums",
               fontWeight: 700,
               fontSize: 20,
               color: "var(--color-text)",
@@ -453,7 +445,7 @@ function CartItemRow({
             <span
               style={{
                 fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
                 fontSize: 12,
                 color: "var(--color-text-muted)",
                 textDecoration: "line-through",
@@ -588,7 +580,7 @@ function Summary({
       <h2
         style={{
           fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+          fontVariantNumeric: "tabular-nums",
           fontSize: 24,
           fontWeight: 600,
           color: "var(--color-text)",
@@ -721,7 +713,7 @@ function Summary({
         <span
           style={{
             fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+            fontVariantNumeric: "tabular-nums",
             fontSize: 32,
             fontWeight: 700,
             color: "var(--color-accent)",
@@ -750,8 +742,7 @@ function Summary({
             "var(--color-accent-light)")
         }
         onMouseLeave={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.backgroundColor =
-            "var(--color-accent)")
+          ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--color-accent)")
         }
       >
         <ShoppingBag size={18} />
@@ -772,7 +763,8 @@ function Summary({
         >
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>
-            Часть товаров доставляется только по Новосибирску. Проверьте адрес доставки при оформлении.
+            Часть товаров доставляется только по Новосибирску. Проверьте адрес доставки при
+            оформлении.
           </span>
         </div>
       )}
@@ -794,15 +786,7 @@ function Summary({
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-}) {
+function SummaryRow({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="flex items-center justify-between py-1.5">
       <span

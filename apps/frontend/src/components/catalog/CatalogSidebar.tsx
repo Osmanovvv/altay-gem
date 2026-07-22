@@ -80,9 +80,7 @@ export function CatalogSidebar({ filters, onChange, categories }: CatalogSidebar
                   fontFamily: "var(--font-body)",
                   fontSize: 14,
                   fontWeight: isActive ? 600 : 500,
-                  color: isActive
-                    ? "var(--color-accent-dark)"
-                    : "var(--color-text)",
+                  color: isActive ? "var(--color-accent-dark)" : "var(--color-text)",
                   minHeight: 44,
                 }}
               >
@@ -118,8 +116,7 @@ export function CatalogSidebar({ filters, onChange, categories }: CatalogSidebar
                   >
                     {cat.subcategories.map((sub) => {
                       const isSubActive =
-                        filters.category === cat.id &&
-                        filters.subcategory === sub;
+                        filters.category === cat.id && filters.subcategory === sub;
                       return (
                         <li key={sub}>
                           <button
@@ -200,16 +197,11 @@ export function CatalogSidebar({ filters, onChange, categories }: CatalogSidebar
         />
       </div>
 
-      <label
-        className="mt-5 flex cursor-pointer items-center gap-3"
-        style={{ minHeight: 44 }}
-      >
+      <label className="mt-5 flex cursor-pointer items-center gap-3" style={{ minHeight: 44 }}>
         <input
           type="checkbox"
           checked={filters.inStockOnly}
-          onChange={(e) =>
-            onChange({ ...filters, inStockOnly: e.target.checked })
-          }
+          onChange={(e) => onChange({ ...filters, inStockOnly: e.target.checked })}
           className="h-4 w-4 cursor-pointer accent-[color:var(--color-accent)]"
         />
         <span

@@ -16,8 +16,8 @@ export interface ProductInfoDetail {
 }
 
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
-  "Хит": { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
-  "Новинка": { bg: "var(--color-success)", color: "#f5efe0" },
+  Хит: { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
+  Новинка: { bg: "var(--color-success)", color: "#f5efe0" },
 };
 const badgeStyle = (b: string) =>
   BADGE_STYLES[b] ??
@@ -30,8 +30,6 @@ const PICKUP_POINT_ADDRESS: Record<string, string> = {
   pickup_leningradskaya: "Ленинградская 75/2",
   pickup_titova: "Титова 32",
 };
-
-
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
 
@@ -134,7 +132,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
         <span
           style={{
             fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+            fontVariantNumeric: "tabular-nums",
             fontWeight: 700,
             fontSize: 40,
             lineHeight: 1,
@@ -147,7 +145,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
           <span
             style={{
               fontFamily: "var(--font-body)",
-                        fontVariantNumeric: "tabular-nums",
+              fontVariantNumeric: "tabular-nums",
               fontSize: 18,
               color: "var(--color-text-muted)",
               textDecoration: "line-through",
@@ -183,21 +181,15 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
         className="inline-flex w-fit items-center gap-2 rounded-full"
         style={{
           padding: "10px 16px",
-          backgroundColor: product.isPerishable
-            ? "rgba(166,61,61,0.08)"
-            : "rgba(59,110,74,0.1)",
-          color: product.isPerishable
-            ? "var(--color-error)"
-            : "var(--color-success)",
+          backgroundColor: product.isPerishable ? "rgba(166,61,61,0.08)" : "rgba(59,110,74,0.1)",
+          color: product.isPerishable ? "var(--color-error)" : "var(--color-success)",
           fontFamily: "var(--font-body)",
           fontWeight: 600,
           fontSize: 13,
         }}
       >
         {product.isPerishable ? <MapPin size={16} /> : <Truck size={16} />}
-        {product.isPerishable
-          ? "Доставка только по Новосибирску"
-          : "Доставка по России"}
+        {product.isPerishable ? "Доставка только по Новосибирску" : "Доставка по России"}
       </div>
 
       {/* Specs table */}
@@ -215,8 +207,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
               <tr
                 key={k}
                 style={{
-                  borderTop:
-                    i === 0 ? "none" : "1px solid rgba(31,26,14,0.06)",
+                  borderTop: i === 0 ? "none" : "1px solid rgba(31,26,14,0.06)",
                 }}
               >
                 <td
@@ -273,26 +264,18 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
               style={{
                 fontFamily: "var(--font-body)",
                 fontSize: 13,
-                color:
-                  pa.availableQty > 0
-                    ? "var(--color-text)"
-                    : "var(--color-text-muted)",
+                color: pa.availableQty > 0 ? "var(--color-text)" : "var(--color-text-muted)",
               }}
             >
               <MapPin
                 size={14}
                 style={{
-                  color:
-                    pa.availableQty > 0
-                      ? "var(--color-success)"
-                      : "var(--color-text-muted)",
+                  color: pa.availableQty > 0 ? "var(--color-success)" : "var(--color-text-muted)",
                   flexShrink: 0,
                 }}
               />
               {PICKUP_POINT_ADDRESS[pa.point] ?? pa.point} —{" "}
-              {pa.availableQty > 0
-                ? `${pa.availableQty} ${product.unit}`
-                : "нет в наличии"}
+              {pa.availableQty > 0 ? `${pa.availableQty} ${product.unit}` : "нет в наличии"}
             </span>
           ))}
         </div>
@@ -301,11 +284,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
       {/* Counter + CTA */}
       <div className="hidden flex-col gap-3 md:flex md:flex-row md:items-center">
         <QtyCounter qty={qty} setQty={setQty} max={stock} disabled={!product.inStock} />
-        <AddButton
-          disabled={!product.inStock}
-          onClick={() => onAdd(product, qty)}
-          fullWidth
-        />
+        <AddButton disabled={!product.inStock} onClick={() => onAdd(product, qty)} fullWidth />
       </div>
 
       {/* Mobile counter (sticky CTA renders separately at page level) */}
@@ -429,8 +408,7 @@ function AddButton({
       }}
       onMouseLeave={(e) => {
         if (!disabled)
-          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-            "var(--color-accent)";
+          (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--color-accent)";
       }}
     >
       <ShoppingBag size={18} />
