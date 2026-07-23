@@ -68,10 +68,23 @@ export class StrapiService {
     this.token = config.get<string>('STRAPI_API_TOKEN', '');
   }
 
-  /** Абсолютный URL для медиафайла Strapi (доступный из браузера). */
-  mediaUrl(media?: StrapiMedia | null): string | null {
+  /**
+   * Абсолютный URL медиафайла (доступный из браузера). По умолчанию отдаём
+   * ОПТИМИЗИРОВАННЫЙ вариант (large→medium→small→оригинал): Strapi при
+   * загрузке сам жмёт и генерирует размерные версии (ТЗ 7.3 «сжатие/
+   * web-форматы») — витрине не нужен многомегабайтный оригинал контентщика.
+   * { original: true } — для полноширинных баннеров/hero, где 1000px мало.
+   */
+  mediaUrl(
+    media?: StrapiMedia | null,
+    opts?: { original?: boolean },
+  ): string | null {
     if (!media?.url) return null;
-    return media.url.startsWith('http') ? media.url : this.publicBase + media.url;
+    const f = media.formats ?? undefined;
+    const chosen = opts?.original
+      ? media.url
+      : (f?.large?.url ?? f?.medium?.url ?? f?.small?.url ?? media.url);
+    return chosen.startsWith('http') ? chosen : this.publicBase + chosen;
   }
 
   private async fetchJson<T>(path: string): Promise<T> {

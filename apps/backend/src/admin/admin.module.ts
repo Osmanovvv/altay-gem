@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { CatalogService } from '../catalog/catalog.service';
 import { EvotorModule } from '../evotor/evotor.module';
 import { OrdersModule } from '../orders/orders.module';
+import { StrapiService } from '../strapi/strapi.service';
 import { AdminController } from './admin.controller';
 import { AdminGuard } from './admin.guard';
 
@@ -12,6 +14,8 @@ import { AdminGuard } from './admin.guard';
 @Module({
   imports: [OrdersModule, EvotorModule],
   controllers: [AdminController],
-  providers: [AdminGuard],
+  // CatalogService/StrapiService — как в OrdersModule (кеш общий в Redis,
+  // invalidate() любого инстанса сбрасывает его для всех).
+  providers: [AdminGuard, CatalogService, StrapiService],
 })
 export class AdminModule {}

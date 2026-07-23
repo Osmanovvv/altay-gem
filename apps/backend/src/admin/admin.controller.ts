@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   HttpCode,
+  Inject,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -21,6 +23,10 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { eq } from 'drizzle-orm';
+import { CatalogService } from '../catalog/catalog.service';
+import { DB, type Database } from '../db/database.module';
+import { evotorProducts } from '../db/schema';
 import { ReconcileService } from '../evotor/reconcile.service';
 import {
   ORDER_STATUSES,
@@ -76,7 +82,50 @@ export class AdminController {
     private readonly config: ConfigService,
     private readonly orders: OrdersService,
     private readonly reconcile: ReconcileService,
+    private readonly catalog: CatalogService,
+    @Inject(DB) private readonly db: Database,
   ) {}
+
+  /**
+   * Товар реплики Эвотора по evotor_uuid — серверная валидация связи из
+   * админки Strapi (ТЗ 7.2: uuid «выбирается из импортированного каталога»;
+   * опечатка не должна молча прятать товар с витрины). 404 = не найден.
+   */
+  @Get('replica/products/:uuid')
+  @UseGuards(AdminGuard)
+  async replicaProduct(@Param('uuid') uuid: string) {
+    // Кривой формат не отправляем в PG (uuid-колонка бросила бы 22P02).
+    if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(uuid)) {
+      throw new NotFoundException('Товар с таким evotor_uuid не найден в реплике');
+    }
+    const rows = await this.db
+      .select({
+        evotorUuid: evotorProducts.evotorUuid,
+        name: evotorProducts.name,
+        storeId: evotorProducts.storeId,
+        isArchived: evotorProducts.isArchived,
+        allowToSell: evotorProducts.allowToSell,
+      })
+      .from(evotorProducts)
+      .where(eq(evotorProducts.evotorUuid, uuid))
+      .limit(1);
+    if (!rows.length) {
+      throw new NotFoundException('Товар с таким evotor_uuid не найден в реплике');
+    }
+    return rows[0];
+  }
+
+  /**
+   * Сброс кеша каталога по событию публикации в Strapi (ТЗ р.9: «инвалидация
+   * при… публикациях Strapi») — дёргает lifecycle-подписка Strapi через мост.
+   */
+  @Post('cache/invalidate')
+  @UseGuards(AdminGuard)
+  @HttpCode(200)
+  async invalidateCache(): Promise<{ ok: true }> {
+    await this.catalog.invalidate();
+    return { ok: true };
+  }
 
   /** Вход владельца: пароль → токен сессии (12 ч). */
   @Post('login')

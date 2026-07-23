@@ -110,8 +110,10 @@ export class CatalogController {
         badge: b.badge ?? null,
         description: b.description ?? null,
         buttonText: b.buttonText ?? null,
+        // Баннер полноширинный — оптимизированного 1000px мало, отдаём оригинал.
         image: this.strapi.mediaUrl(
           b.image as { url: string } | null | undefined,
+          { original: true },
         ),
         link: b.linkPromo
           ? { type: 'promo', slug: (b.linkPromo as { slug: string }).slug }
@@ -139,8 +141,10 @@ export class CatalogController {
       slug: p.slug,
       title: p.title,
       description: p.description ?? null,
+      // Фото акции живёт и в полноширинном hero детальной — отдаём оригинал.
       image: this.strapi.mediaUrl(
         p.image as { url: string } | null | undefined,
+        { original: true },
       ),
       validTo: p.validTo ?? null,
     }));
@@ -177,6 +181,7 @@ export class CatalogController {
       categorySlug: (p.category as { slug: string } | null)?.slug ?? null,
       image: this.strapi.mediaUrl(
         p.image as { url: string } | null | undefined,
+        { original: true },
       ),
       validTo: p.validTo ?? null,
       products: cards.filter((c) => memberSlugs.has(c.slug)),
