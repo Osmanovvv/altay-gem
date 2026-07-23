@@ -87,14 +87,15 @@ describe('quoteStockProblems', () => {
     expect(problems).toEqual([]);
   });
 
-  test('дубли строк ОДНОГО магазина: каждая буферизуется отдельно', async () => {
-    // Смоук на уже-слитую строку: quantity 6 против 5 доступных → проблема.
+  test('доставка: агрегат по магазинам меньше заказа → проблема с суммой', async () => {
+    // Курьер собирают из любых точек: доступно = сумма (5+0), quantity 6 → нехватка.
     const svc = service(stores);
+    const avail: Record<string, number> = { len: 5, tit: 0 };
     (
       svc as unknown as {
         storeOrderable: (p: never, s: string) => Promise<number>;
       }
-    ).storeOrderable = () => Promise.resolve(5);
+    ).storeOrderable = (_p, storeId) => Promise.resolve(avail[storeId] ?? 0);
     const problems = await (
       svc as unknown as {
         quoteStockProblems: (m: string, l: unknown[]) => Promise<unknown[]>;
@@ -103,24 +104,38 @@ describe('quoteStockProblems', () => {
     expect(problems).toEqual([{ id: 'syr', availableQty: 5 }]);
   });
 
-  test('доставка: проверяется магазин записи товара, otherPickup не предлагается', async () => {
+  test('БАГФИКС доставка: весь остаток в НЕ-записанном магазине → курьер доступен', async () => {
+    // Сыр «Хит»: 22 на Ленинградской, 0 на Титова, магазин записи = tit.
+    // Раньше курьер смотрел на tit (0) и блокировал заказ. Теперь — агрегат 22.
     const svc = service(stores);
-    const calls: string[] = [];
+    const avail: Record<string, number> = { len: 22, tit: 0 };
     (
       svc as unknown as {
         storeOrderable: (p: never, s: string) => Promise<number>;
       }
-    ).storeOrderable = (_p, storeId) => {
-      calls.push(storeId);
-      return Promise.resolve(0);
-    };
+    ).storeOrderable = (_p, storeId) => Promise.resolve(avail[storeId] ?? 0);
+    const problems = await (
+      svc as unknown as {
+        quoteStockProblems: (m: string, l: unknown[]) => Promise<unknown[]>;
+      }
+    ).quoteStockProblems('courier_nsk', [{ p: P('syr', 'tit'), quantity: 1 }]);
+    expect(problems).toEqual([]); // магазин записи не важен — считаем сумму
+  });
+
+  test('доставка: otherPickup не предлагается (это подсказка только для самовывоза)', async () => {
+    const svc = service(stores);
+    const avail: Record<string, number> = { len: 0, tit: 0 };
+    (
+      svc as unknown as {
+        storeOrderable: (p: never, s: string) => Promise<number>;
+      }
+    ).storeOrderable = (_p, storeId) => Promise.resolve(avail[storeId] ?? 0);
     const problems = await (
       svc as unknown as {
         quoteStockProblems: (m: string, l: unknown[]) => Promise<unknown[]>;
       }
     ).quoteStockProblems('courier_nsk', [{ p: P('syr', 'len'), quantity: 2 }]);
-    expect(calls).toEqual(['len']); // склад по умолчанию = магазин записи
-    expect(problems).toEqual([{ id: 'syr', availableQty: 0 }]);
+    expect(problems).toEqual([{ id: 'syr', availableQty: 0 }]); // без otherPickup
   });
 });
 

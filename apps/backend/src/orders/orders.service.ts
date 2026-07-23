@@ -33,6 +33,7 @@ import {
   canTransition,
 } from './order-status';
 import { PaymentService } from './payment.service';
+import { allocateAcrossStores } from './allocate-stores';
 import { mergeDuplicateItems } from './merge-items';
 import {
   isPickupPoint,
@@ -413,8 +414,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     }
     const totalRub = subtotalRub - discountRub + deliveryRub;
 
-    // 5. целевой магазин списания: самовывоз — конкретная точка,
-    //    доставка — магазин «основной» записи товара (склад по умолчанию)
+    // 5. целевой магазин списания: самовывоз — конкретная точка;
+    //    доставка — null (собираем из любых магазинов, см. цикл ниже).
     const targetStoreId = await this.resolveTargetStore(dto.deliveryMethod);
 
     // 6. транзакция: блокировка остатков -> проверка -> заказ+резервы
@@ -425,62 +426,146 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         evotorUuid: string;
         qty: number; // в единицах товара (кг для весовых)
       }> = [];
+      // Основной магазин каждой строки для orderItems (подсказка сборки):
+      // самовывоз — точка; доставка — магазин, отдавший больше всего.
+      // Индексируется по ИСХОДНОЙ позиции строки (локи берём в другом порядке).
+      const lineStoreId: string[] = new Array(lines.length);
 
-      for (const { p, quantity } of lines) {
-        // запись товара в целевом магазине ищем по match_key
-        const rows = await tx.execute(sql`
-          SELECT store_id, evotor_uuid, quantity, measure
-          FROM evotor_products
-          WHERE match_key = ${p.matchKey}
-            AND store_id = ${targetStoreId ?? p.storeId}
-            AND is_archived = false AND allow_to_sell = true
-          FOR UPDATE
-        `);
-        const row = (rows as unknown as { rows: Array<Record<string, unknown>> })
-          .rows[0];
-        if (!row) {
-          stockProblems.push({
-            id: p.slug,
-            reason: 'out_of_stock',
-            availableQty: 0,
-          });
-          continue;
-        }
-        const storeId = String(row.store_id);
-        const evotorUuid = String(row.evotor_uuid);
-        const physical = Number(row.quantity);
+      // Доступно к заказу в конкретном магазине (шт/порции) под FOR UPDATE:
+      // физостаток минус активные резервы, порции+буфер — как на витрине.
+      const orderableUnderLock = async (
+        row: Record<string, unknown>,
+        p: ProductInternal,
+      ): Promise<number> => {
         const [resRow] = (
           (await tx.execute(sql`
             SELECT coalesce(sum(quantity), 0) AS reserved
             FROM stock_reservations
-            WHERE store_id = ${storeId} AND evotor_uuid = ${evotorUuid}
+            WHERE store_id = ${String(row.store_id)}
+              AND evotor_uuid = ${String(row.evotor_uuid)}
               AND status = 'active'
               AND (expires_at IS NULL OR expires_at > now())
           `)) as unknown as { rows: Array<{ reserved: string }> }
         ).rows;
-        const availableUnits = physical - Number(resRow?.reserved ?? 0);
-        const isWeight = String(row.measure) === 'кг';
-        const portionKg = safePortionMassG(p.portionMassG) / 1000;
-        // Та же математика, что на витрине и в quote (единый источник).
-        const availableQty = orderableUnits({
-          availableQty: availableUnits,
+        return orderableUnits({
+          availableQty: Number(row.quantity) - Number(resRow?.reserved ?? 0),
           measure: String(row.measure),
           portionMassG: p.portionMassG,
           buffer: this.safetyBuffer,
         });
-        if (availableQty < quantity) {
+      };
+      const toReserveQty = (units: number, measure: string, p: ProductInternal) =>
+        measure === 'кг' ? units * (safePortionMassG(p.portionMassG) / 1000) : units;
+
+      // Порядок взятия локов — ГЛОБАЛЬНО по matchKey (внутри доставки ещё и
+      // ORDER BY store_id). Иначе два параллельных заказа с товарами A,B в
+      // разном порядке корзины взяли бы строки крест-накрест → дедлок. Строки
+      // самих lines не переставляем (важно для orderItems/чека) — только
+      // очередь блокировок.
+      const lockOrder = lines
+        .map((_, i) => i)
+        .sort((a, b) =>
+          lines[a].p.matchKey < lines[b].p.matchKey
+            ? -1
+            : lines[a].p.matchKey > lines[b].p.matchKey
+              ? 1
+              : 0,
+        );
+      for (const idx of lockOrder) {
+        const { p, quantity } = lines[idx];
+        if (targetStoreId) {
+          // САМОВЫВОЗ: списываем из выбранной точки.
+          const rows = await tx.execute(sql`
+            SELECT store_id, evotor_uuid, quantity, measure
+            FROM evotor_products
+            WHERE match_key = ${p.matchKey}
+              AND store_id = ${targetStoreId}
+              AND is_archived = false AND allow_to_sell = true
+            FOR UPDATE
+          `);
+          const row = (
+            rows as unknown as { rows: Array<Record<string, unknown>> }
+          ).rows[0];
+          if (!row) {
+            stockProblems.push({ id: p.slug, reason: 'out_of_stock', availableQty: 0 });
+            lineStoreId[idx] = targetStoreId;
+            continue;
+          }
+          const availableQty = await orderableUnderLock(row, p);
+          if (availableQty < quantity) {
+            stockProblems.push({
+              id: p.slug,
+              reason: 'out_of_stock',
+              availableQty: Math.max(availableQty, 0),
+            });
+            lineStoreId[idx] = String(row.store_id);
+            continue;
+          }
+          reservations.push({
+            storeId: String(row.store_id),
+            evotorUuid: String(row.evotor_uuid),
+            qty: toReserveQty(quantity, String(row.measure), p),
+          });
+          lineStoreId[idx] = String(row.store_id);
+          continue;
+        }
+
+        // ДОСТАВКА (курьер/Россия): собираем из ЛЮБЫХ магазинов — доступно =
+        // сумма по точкам (как агрегат каталога), резерв распределяем жадно.
+        // Все строки match_key блокируем ORDER BY store_id (детерминированный
+        // внутренний порядок); межстрочный порядок задан lockOrder (по matchKey).
+        const rows = await tx.execute(sql`
+          SELECT store_id, evotor_uuid, quantity, measure
+          FROM evotor_products
+          WHERE match_key = ${p.matchKey}
+            AND is_archived = false AND allow_to_sell = true
+          ORDER BY store_id
+          FOR UPDATE
+        `);
+        const storeRows = (
+          rows as unknown as { rows: Array<Record<string, unknown>> }
+        ).rows;
+        if (!storeRows.length) {
+          stockProblems.push({ id: p.slug, reason: 'out_of_stock', availableQty: 0 });
+          lineStoreId[idx] = p.storeId;
+          continue;
+        }
+        // Ключ источника — СОСТАВНОЙ (store_id + evotor_uuid), это и есть PK
+        // строки. Один и тот же evotor_uuid встречается в РАЗНЫХ магазинах
+        // (одна номенклатура выгружена на обе точки), поэтому ключ только по
+        // uuid схлопнул бы строки двух магазинов и увёл резерв в чужую точку.
+        const sources: Array<{ id: string; available: number }> = [];
+        const meta = new Map<
+          string,
+          { storeId: string; evotorUuid: string; measure: string }
+        >();
+        for (const row of storeRows) {
+          const storeId = String(row.store_id);
+          const evotorUuid = String(row.evotor_uuid);
+          const key = `${storeId}::${evotorUuid}`;
+          sources.push({ id: key, available: await orderableUnderLock(row, p) });
+          meta.set(key, { storeId, evotorUuid, measure: String(row.measure) });
+        }
+        const alloc = allocateAcrossStores(sources, quantity);
+        if (!alloc.ok) {
           stockProblems.push({
             id: p.slug,
             reason: 'out_of_stock',
-            availableQty: Math.max(availableQty, 0),
+            availableQty: alloc.total,
           });
+          lineStoreId[idx] = p.storeId;
           continue;
         }
-        reservations.push({
-          storeId,
-          evotorUuid,
-          qty: isWeight ? quantity * portionKg : quantity,
-        });
+        for (const a of alloc.allocations) {
+          const m = meta.get(a.id)!;
+          reservations.push({
+            storeId: m.storeId,
+            evotorUuid: m.evotorUuid,
+            qty: toReserveQty(a.qty, m.measure, p),
+          });
+        }
+        const firstKey = alloc.allocations[0]?.id;
+        lineStoreId[idx] = firstKey ? meta.get(firstKey)!.storeId : p.storeId;
       }
 
       if (stockProblems.length) {
@@ -569,9 +654,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         .where(eq(orders.id, order.id));
 
       await tx.insert(orderItems).values(
-        lines.map(({ p, quantity }) => ({
+        lines.map(({ p, quantity }, i) => ({
           orderId: order.id,
-          storeId: reservations.find((r) => r.evotorUuid)?.storeId ?? p.storeId,
+          // Магазин строки: самовывоз — точка; доставка — где взяли больше.
+          storeId: lineStoreId[i] ?? p.storeId,
           evotorUuid: p.evotorUuid,
           name: p.name,
           priceKopecks: rubToKopecks(p.priceRub),
@@ -776,7 +862,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   private async resolveTargetStore(
     method: DeliveryMethod,
   ): Promise<string | null> {
-    if (!isPickupPoint(method)) return null; // доставка — магазин записи товара
+    if (!isPickupPoint(method)) return null; // доставка — агрегат по магазинам
     const stores = await this.db.select().from(evotorStores);
     const match = resolvePickupStores(stores).find((m) => m.point === method);
     if (!match) {
@@ -835,15 +921,14 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     method: DeliveryMethod,
     lines: Array<{ p: ProductInternal; quantity: number }>,
   ): Promise<QuoteStockProblem[]> {
-    // Справочник магазинов читаем ОДИН раз: и целевая точка, и «другая»
-    // берутся из одного resolvePickupStores (resolveTargetStore не трогаем —
-    // он остаётся на create()).
+    // Справочник магазинов читаем ОДИН раз: для самовывоза — целевая/«другая»
+    // точка; для доставки — все магазины (агрегат остатка).
+    const allStores = await this.db.select().from(evotorStores);
+    const allStoreIds = allStores.map((s) => s.id);
+    const pickup = isPickupPoint(method);
+    const pickupStores = resolvePickupStores(allStores);
     let targetStoreId: string | null = null;
-    let pickupStores: Array<{ point: PickupPoint; storeId: string }> = [];
-    if (isPickupPoint(method)) {
-      pickupStores = resolvePickupStores(
-        await this.db.select().from(evotorStores),
-      );
+    if (pickup) {
       const match = pickupStores.find((m) => m.point === method);
       // Наследуем жёсткий PICKUP_POINT_UNKNOWN (как resolveTargetStore в
       // create): ошибка настройки адресов всплывает уже на quote — осознанно.
@@ -858,22 +943,39 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // Строки проверяются параллельно (порядок ответа = порядок строк корзины).
     const results = await Promise.all(
       lines.map(async ({ p, quantity }): Promise<QuoteStockProblem | null> => {
-        const availableQty = await this.storeOrderable(
-          p,
-          targetStoreId ?? p.storeId,
-        );
+        // Доставка (курьер/Россия): заказ собирают из ЛЮБЫХ точек, поэтому
+        // доступно = СУММА по магазинам — тот же агрегат, что в каталоге, а не
+        // остаток одного «магазина записи товара» (иначе товар с 22 шт на
+        // другой точке блокировался с «доступно 0»).
+        if (!pickup) {
+          // storeOrderable берёт первую строку магазина; при ДУБЛЯХ
+          // номенклатуры в одной точке это занижает агрегат против create/
+          // каталога (те суммируют все строки). Направление безопасное:
+          // create доступно ≥ quote, «оплатил → заказ не создался» невозможно,
+          // просто изредка перестраховываемся. Ни один витринный товар дублей
+          // сейчас не имеет.
+          const perStore = await Promise.all(
+            allStoreIds.map(async (storeId) => ({
+              id: storeId,
+              available: await this.storeOrderable(p, storeId),
+            })),
+          );
+          const alloc = allocateAcrossStores(perStore, quantity);
+          if (alloc.ok) return null;
+          return { id: p.slug, availableQty: alloc.total };
+        }
+        // Самовывоз: конкретная точка; если не хватает — подсказываем другую.
+        const availableQty = await this.storeOrderable(p, targetStoreId!);
         if (availableQty >= quantity) return null;
         const problem: QuoteStockProblem = { id: p.slug, availableQty };
-        if (isPickupPoint(method)) {
-          const other = otherPickupPoint(method, pickupStores);
-          if (other) {
-            const otherQty = await this.storeOrderable(p, other.storeId);
-            if (otherQty >= quantity) {
-              problem.otherPickup = {
-                point: other.point,
-                availableQty: otherQty,
-              };
-            }
+        const other = otherPickupPoint(method as PickupPoint, pickupStores);
+        if (other) {
+          const otherQty = await this.storeOrderable(p, other.storeId);
+          if (otherQty >= quantity) {
+            problem.otherPickup = {
+              point: other.point,
+              availableQty: otherQty,
+            };
           }
         }
         return problem;
