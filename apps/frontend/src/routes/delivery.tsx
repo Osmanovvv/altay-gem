@@ -93,7 +93,9 @@ function DeliveryPage() {
     },
   ];
 
-  // Тарифная таблица — те же данные, по которым бэкенд считает доставку в заказе
+  // Тарифная таблица. Публичные цифры СДЭК по весу НЕ показываем (правка ПМ:
+  // тарифы перевозчика меняются) — точная стоимость по-прежнему считается
+  // бэкендом по сетке из админки и показывается в сводке чекаута до оплаты.
   const rates: Array<{ label: string; note: string; price: string }> = [
     { label: "Новосибирск, самовывоз", note: "в день заказа", price: "Бесплатно" },
     {
@@ -103,11 +105,11 @@ function DeliveryPage() {
         ? `${formatPrice(courierRub)}, от ${formatPrice(freeFromRub)} - бесплатно`
         : formatPrice(courierRub),
     },
-    ...delivery.russiaWeightTiers.map((t) => ({
-      label: `По России, до ${formatWeight(t.weightUpToG)}`,
-      note: "СДЭК / Почта России",
-      price: formatPrice(t.priceRub),
-    })),
+    {
+      label: "По России",
+      note: "СДЭК / Почта России, 3-10 дней",
+      price: "по весу заказа — покажем при оформлении",
+    },
   ];
   return (
     <div style={{ backgroundColor: "var(--color-bg-cream)", minHeight: "100vh" }}>

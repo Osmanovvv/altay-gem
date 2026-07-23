@@ -100,6 +100,16 @@ export function Header({ phone: phoneProp }: HeaderProps) {
                   minHeight: 44,
                   display: "inline-flex",
                   alignItems: "center",
+                  borderBottom: "2px solid transparent",
+                }}
+                // Активная вкладка подсвечивается (правка ПМ): медовый цвет
+                // + подчёркивание в акцент дизайн-системы.
+                activeProps={{
+                  style: {
+                    color: "var(--color-accent-dark)",
+                    fontWeight: 600,
+                    borderBottom: "2px solid var(--color-accent)",
+                  },
                 }}
               >
                 {l.label}
@@ -218,6 +228,13 @@ export function Header({ phone: phoneProp }: HeaderProps) {
                       fontSize: 17,
                       fontWeight: 500,
                       minHeight: 44,
+                    }}
+                    activeProps={{
+                      style: {
+                        color: "var(--color-accent)",
+                        fontWeight: 700,
+                        backgroundColor: "rgba(232,180,79,0.1)",
+                      },
                     }}
                   >
                     {l.label}
