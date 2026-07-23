@@ -9,6 +9,7 @@ import { PageHero } from "@/components/info/PageHero";
 import { useSettings } from "@/context/SettingsContext";
 import type { Review } from "@/data/reviews";
 import { fetchReviews, toReviews } from "@/lib/api";
+import { dgisOrgUrl, yandexOrgUrl } from "@/lib/map-links";
 
 export const Route = createFileRoute("/reviews")({
   head: () => ({
@@ -38,8 +39,14 @@ const FILTERS: Filter[] = ["Все", "Яндекс", "2ГИС"];
 function ReviewsPage() {
   const { reviews: REVIEWS, average } = Route.useLoaderData();
   const settings = useSettings();
-  const yandexUrl = settings?.reviewYandexUrl?.trim();
-  const gisUrl = settings?.review2gisUrl?.trim();
+  // Кнопки CTA видны всегда (правка ПМ): точные ссылки на карточки — из
+  // админки; пока они не заполнены — поиск по имени+адресу главного магазина.
+  const mainStore = settings?.storePoints?.[0] ?? {
+    name: "Жемчужина Алтая",
+    address: "г. Новосибирск, ул. Ленинградская 75/2",
+  };
+  const yandexUrl = settings?.reviewYandexUrl?.trim() || yandexOrgUrl(mainStore);
+  const gisUrl = settings?.review2gisUrl?.trim() || dgisOrgUrl(mainStore);
   const widgetUrl = settings?.yandexReviewsWidgetUrl?.trim();
   const subtitle =
     average != null
@@ -263,46 +270,40 @@ function ReviewsPage() {
                   качественные товары с Алтая.
                 </p>
               </div>
-              {(yandexUrl || gisUrl) && (
-                <div className="flex flex-wrap gap-3">
-                  {yandexUrl && (
-                    <a
-                      href={yandexUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-transform hover:-translate-y-0.5"
-                      style={{
-                        background: "var(--color-accent)",
-                        color: "var(--color-bg-dark)",
-                        fontFamily: "var(--font-body)",
-                        fontWeight: 700,
-                        fontSize: 14,
-                        textDecoration: "none",
-                      }}
-                    >
-                      Оставить на Яндекс
-                    </a>
-                  )}
-                  {gisUrl && (
-                    <a
-                      href={gisUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-colors hover:bg-white/10"
-                      style={{
-                        border: "1px solid rgba(255,253,247,0.3)",
-                        color: "var(--color-text-on-dark)",
-                        fontFamily: "var(--font-body)",
-                        fontWeight: 600,
-                        fontSize: 14,
-                        textDecoration: "none",
-                      }}
-                    >
-                      Оставить на 2ГИС
-                    </a>
-                  )}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={yandexUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-transform hover:-translate-y-0.5"
+                  style={{
+                    background: "var(--color-accent)",
+                    color: "var(--color-bg-dark)",
+                    fontFamily: "var(--font-body)",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    textDecoration: "none",
+                  }}
+                >
+                  Оставить отзыв в Яндексе
+                </a>
+                <a
+                  href={gisUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 transition-colors hover:bg-white/10"
+                  style={{
+                    border: "1px solid rgba(255,253,247,0.3)",
+                    color: "var(--color-text-on-dark)",
+                    fontFamily: "var(--font-body)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    textDecoration: "none",
+                  }}
+                >
+                  Оставить в 2ГИС
+                </a>
+              </div>
             </div>
           </div>
         </section>
