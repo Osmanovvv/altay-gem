@@ -117,6 +117,8 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
           {p.subcategory}
         </span>
 
+        {/* Название и описание клампятся по 2 строки с фикс-высотой блока —
+            цены и кнопки всех карточек ряда встают на одну линию (правка ПМ). */}
         <h3
           className="mt-3"
           style={{
@@ -126,6 +128,10 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
             lineHeight: 1.3,
             color: "var(--color-text)",
             minHeight: 40,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
           }}
         >
           {p.name}
@@ -137,12 +143,17 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
             fontSize: 12.5,
             lineHeight: 1.4,
             color: "var(--color-text-muted)",
+            height: 35, // ровно 2 строки (12.5 × 1.4 × 2)
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
           }}
         >
           {p.shortDescription}
         </p>
 
-        <div className="mt-4 flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2" style={{ marginTop: 12 }}>
           <span
             style={{
               fontFamily: "var(--font-body)",
@@ -184,7 +195,7 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
           <div
             className="mt-auto inline-flex items-center justify-between rounded-full"
             style={{
-              marginTop: 18,
+              marginTop: 14,
               minHeight: 44,
               backgroundColor: "rgba(31,26,14,0.06)",
               padding: 3,
@@ -246,7 +257,7 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
             disabled={!p.inStock}
             className="mt-auto inline-flex items-center justify-center gap-2 rounded-full"
             style={{
-              marginTop: 18,
+              marginTop: 14,
               backgroundColor: p.inStock ? "var(--color-accent)" : "rgba(31,26,14,0.1)",
               color: p.inStock ? "var(--color-bg-dark)" : "var(--color-text-muted)",
               fontFamily: "var(--font-body)",
