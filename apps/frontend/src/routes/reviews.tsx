@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Quote, Star } from "lucide-react";
 
@@ -33,9 +33,6 @@ export const Route = createFileRoute("/reviews")({
   component: ReviewsPage,
 });
 
-type Filter = "Все" | "Яндекс" | "2ГИС";
-const FILTERS: Filter[] = ["Все", "Яндекс", "2ГИС"];
-
 function ReviewsPage() {
   const { reviews: REVIEWS, average } = Route.useLoaderData();
   const settings = useSettings();
@@ -52,19 +49,13 @@ function ReviewsPage() {
     average != null
       ? `Средний рейтинг ${average.toLocaleString("ru-RU")} по отзывам покупателей. Спасибо каждому, кто делится впечатлениями.`
       : "Спасибо каждому, кто делится впечатлениями о нашей продукции.";
-  const [filter, setFilter] = useState<Filter>("Все");
-
-  const filtered = useMemo<Review[]>(() => {
-    if (filter === "Все") return REVIEWS;
-    return REVIEWS.filter((r) => r.source === filter);
-  }, [filter]);
 
   // Split into 2 columns manually for masonry feel on desktop
   const columns = useMemo(() => {
     const cols: Review[][] = [[], []];
-    filtered.forEach((r, i) => cols[i % 2].push(r));
+    REVIEWS.forEach((r, i) => cols[i % 2].push(r));
     return cols;
-  }, [filtered]);
+  }, [REVIEWS]);
 
   return (
     <>
@@ -73,45 +64,10 @@ function ReviewsPage() {
         <PageHero eyebrow="Отзывы" title="Отзывы покупателей" subtitle={subtitle} />
 
         <section className="mx-auto w-full max-w-6xl px-4 py-14 md:px-8 md:py-20">
-          {/* Filter chips */}
-          <div className="flex flex-wrap gap-2">
-            {FILTERS.map((f) => {
-              const count =
-                f === "Все" ? REVIEWS.length : REVIEWS.filter((r) => r.source === f).length;
-              const active = filter === f;
-              return (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFilter(f)}
-                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 transition-colors"
-                  style={{
-                    background: active ? "var(--color-bg-dark)" : "rgba(31,26,14,0.06)",
-                    color: active ? "var(--color-accent)" : "var(--color-text)",
-                    border: `1px solid ${active ? "transparent" : "rgba(31,26,14,0.12)"}`,
-                    fontFamily: "var(--font-body)",
-                    fontSize: 14,
-                    fontWeight: 600,
-                  }}
-                >
-                  {f}
-                  <span
-                    className="rounded-full px-2 py-0.5"
-                    style={{
-                      background: active ? "rgba(255,253,247,0.18)" : "rgba(31,26,14,0.08)",
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Masonry grid (2 cols desktop, 1 col mobile via columns array) */}
-          <div className="mt-10 grid gap-5 md:grid-cols-2">
+          {/* Masonry grid (2 cols desktop, 1 col mobile via columns array).
+              Фильтры по источнику убраны (правка ПМ) — источник виден
+              на плашке каждой карточки. */}
+          <div className="grid gap-5 md:grid-cols-2">
             {columns.map((col, ci) => (
               <div key={ci} className="flex flex-col gap-5">
                 <AnimatePresence mode="popLayout">
@@ -197,7 +153,7 @@ function ReviewsPage() {
             ))}
           </div>
 
-          {filtered.length === 0 && (
+          {REVIEWS.length === 0 && (
             <p
               className="mt-10 text-center"
               style={{
