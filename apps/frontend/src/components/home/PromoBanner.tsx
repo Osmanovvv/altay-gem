@@ -119,9 +119,10 @@ export function PromoBanner({ banners }: PromoBannerProps) {
                 }}
               />
 
-              {/* Text */}
+              {/* Text: при видимых стрелках паддинг шире зоны стрелок
+                  (12+44px), чтобы стрелка не налезала на текст (правка ПМ). */}
               <div
-                className="relative flex-1 px-6 py-8 md:px-12 md:py-12"
+                className={`relative flex-1 px-6 py-8 md:py-12 ${count > 1 ? "md:px-16" : "md:px-12"}`}
                 style={{ color: promo.accentColor }}
               >
                 {promo.badge && (
@@ -187,37 +188,41 @@ export function PromoBanner({ banners }: PromoBannerProps) {
             </MotionLink>
           </AnimatePresence>
 
-          {/* Arrows */}
-          <button
-            type="button"
-            onClick={prev}
-            aria-label="Предыдущая акция"
-            className="absolute left-3 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/30 md:flex"
-            style={{
-              width: 44,
-              height: 44,
-              backgroundColor: "rgba(255,255,255,0.18)",
-              backdropFilter: "blur(6px)",
-              color: "var(--color-text-on-dark)",
-            }}
-          >
-            <ChevronLeft size={22} />
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            aria-label="Следующая акция"
-            className="absolute right-3 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/30 md:flex"
-            style={{
-              width: 44,
-              height: 44,
-              backgroundColor: "rgba(255,255,255,0.18)",
-              backdropFilter: "blur(6px)",
-              color: "var(--color-text-on-dark)",
-            }}
-          >
-            <ChevronRight size={22} />
-          </button>
+          {/* Arrows: единственному баннеру листалка не нужна (правка ПМ). */}
+          {count > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prev}
+                aria-label="Предыдущая акция"
+                className="absolute left-3 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/30 md:flex"
+                style={{
+                  width: 44,
+                  height: 44,
+                  backgroundColor: "rgba(255,255,255,0.18)",
+                  backdropFilter: "blur(6px)",
+                  color: "var(--color-text-on-dark)",
+                }}
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                aria-label="Следующая акция"
+                className="absolute right-3 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/30 md:flex"
+                style={{
+                  width: 44,
+                  height: 44,
+                  backgroundColor: "rgba(255,255,255,0.18)",
+                  backdropFilter: "blur(6px)",
+                  color: "var(--color-text-on-dark)",
+                }}
+              >
+                <ChevronRight size={22} />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Indicators */}

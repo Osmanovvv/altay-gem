@@ -12,7 +12,7 @@ interface CatalogFiltersProps {
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "price-asc", label: "Цена: по возрастанию" },
   { value: "price-desc", label: "Цена: по убыванию" },
-  { value: "name-asc", label: "По названию" },
+  { value: "name-asc", label: "По алфавиту" },
 ];
 
 export function CatalogFilters({ count, sort, onSortChange }: CatalogFiltersProps) {

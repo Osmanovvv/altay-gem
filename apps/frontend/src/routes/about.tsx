@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
 import { useSettings } from "@/context/SettingsContext";
+import { dgisMapUrl, yandexMapUrl } from "@/lib/map-links";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -68,8 +69,9 @@ function AboutPage() {
         address: p.address,
         phone: p.phone ?? settings.contacts?.phone ?? "",
         hours: p.hours ?? "",
+        mapUrl: p.mapUrl,
       }))
-    : FALLBACK_SHOPS;
+    : FALLBACK_SHOPS.map((s) => ({ ...s, mapUrl: undefined as string | undefined }));
   return (
     <div style={{ backgroundColor: "var(--color-bg-cream)", minHeight: "100vh" }}>
       <Header />
@@ -184,14 +186,30 @@ function AboutPage() {
           <SectionTitle>Наши магазины</SectionTitle>
           <div className="mt-8 grid gap-5 md:grid-cols-2">
             {SHOPS.map((s) => (
+              // Плашка-кнопка (правка ПМ): клик по карточке ведёт на карту,
+              // как кнопки маршрута на главной. Вложенные ссылки (телефон,
+              // Яндекс/2ГИС) гасят всплытие — <a> внутри <a> невалиден,
+              // поэтому обёртка — div с ролью ссылки.
               <div
                 key={s.name}
+                role="link"
+                tabIndex={0}
+                aria-label={`Построить маршрут: ${s.name}, ${s.address}`}
+                onClick={() => window.open(yandexMapUrl(s), "_blank", "noopener")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    window.open(yandexMapUrl(s), "_blank", "noopener");
+                  }
+                }}
+                className="transition-transform hover:-translate-y-1"
                 style={{
                   backgroundColor: "var(--color-bg-dark)",
                   color: "var(--color-text-on-dark)",
                   borderRadius: 20,
                   padding: 28,
                   boxShadow: "var(--shadow-card)",
+                  cursor: "pointer",
                 }}
               >
                 <div className="flex items-start gap-4">
@@ -243,13 +261,53 @@ function AboutPage() {
                   <ShopLine icon={<MapPin size={16} />}>{s.address}</ShopLine>
                   {s.phone && (
                     <ShopLine icon={<Phone size={16} />}>
-                      <a href={`tel:${s.phone.replace(/\D/g, "")}`} style={{ color: "inherit" }}>
+                      <a
+                        href={`tel:${s.phone.replace(/\D/g, "")}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ color: "inherit" }}
+                      >
                         {s.phone}
                       </a>
                     </ShopLine>
                   )}
                   <ShopLine icon={<Clock size={16} />}>{s.hours}</ShopLine>
                 </ul>
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <a
+                    href={yandexMapUrl(s)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center rounded-full px-4 transition-colors hover:opacity-85"
+                    style={{
+                      backgroundColor: "var(--color-accent)",
+                      color: "var(--color-bg-dark)",
+                      fontFamily: "var(--font-body)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      minHeight: 36,
+                    }}
+                  >
+                    Яндекс.Карты
+                  </a>
+                  <a
+                    href={dgisMapUrl(s)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center rounded-full border px-4 transition-colors hover:bg-white/10"
+                    style={{
+                      borderColor: "rgba(232,180,79,0.45)",
+                      color: "var(--color-accent)",
+                      fontFamily: "var(--font-body)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      minHeight: 36,
+                    }}
+                  >
+                    2ГИС
+                  </a>
+                </div>
               </div>
             ))}
           </div>

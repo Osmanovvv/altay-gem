@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Clock, Mail, MapPin, Navigation, Phone } from "lucide-react";
 
 import { useSettings } from "@/context/SettingsContext";
+import { dgisMapUrl, yandexMapUrl } from "@/lib/map-links";
 
 export function FindUsSection() {
   const settings = useSettings();
@@ -21,12 +22,10 @@ export function FindUsSection() {
       ];
   const phone = settings?.contacts?.phone?.trim();
   const email = settings?.contacts?.email?.trim();
-  // Пара кнопок на каждую точку (ТЗ 6.2: «Яндекс.Карты, 2ГИС»); точная ссылка
-  // Яндекса берётся из mapUrl админки, иначе — поиск по адресу.
-  const yandexUrl = (p: { address: string; mapUrl?: string }) =>
-    p.mapUrl?.trim() || `https://yandex.ru/maps/?text=${encodeURIComponent(p.address)}`;
-  const dgisUrl = (p: { address: string }) =>
-    `https://2gis.ru/novosibirsk/search/${encodeURIComponent(p.address)}`;
+  // Пара кнопок на каждую точку (ТЗ 6.2: «Яндекс.Карты, 2ГИС»);
+  // ссылки — из общего lib/map-links (тот же источник, что в «О нас»).
+  const yandexUrl = yandexMapUrl;
+  const dgisUrl = dgisMapUrl;
   return (
     <section
       id="contacts"
