@@ -57,7 +57,11 @@ function PromoIndexPage() {
                   whileHover={{ y: -6 }}
                   className="group relative overflow-hidden rounded-3xl"
                   style={{
-                    background: promo.bgColor,
+                    // Фото акции из админки (ТЗ 6.8: «карточки с фото»);
+                    // затемнение сверху сохраняет читаемость текста.
+                    background: promo.image
+                      ? `linear-gradient(180deg, rgba(20,15,5,0.45) 0%, rgba(20,15,5,0.78) 100%), url("${promo.image}") center/cover no-repeat`
+                      : promo.bgColor,
                     color: promo.accentColor,
                     minHeight: 360,
                     boxShadow: "0 10px 30px -12px rgba(20,15,5,0.35)",

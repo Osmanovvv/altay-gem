@@ -21,8 +21,12 @@ export function FindUsSection() {
       ];
   const phone = settings?.contacts?.phone?.trim();
   const email = settings?.contacts?.email?.trim();
-  const routeUrl = (p: { address: string; mapUrl?: string }) =>
+  // Пара кнопок на каждую точку (ТЗ 6.2: «Яндекс.Карты, 2ГИС»); точная ссылка
+  // Яндекса берётся из mapUrl админки, иначе — поиск по адресу.
+  const yandexUrl = (p: { address: string; mapUrl?: string }) =>
     p.mapUrl?.trim() || `https://yandex.ru/maps/?text=${encodeURIComponent(p.address)}`;
+  const dgisUrl = (p: { address: string }) =>
+    `https://2gis.ru/novosibirsk/search/${encodeURIComponent(p.address)}`;
   return (
     <section
       id="contacts"
@@ -196,7 +200,7 @@ export function FindUsSection() {
             Правый берег
           </div>
           <div
-            className="absolute inset-x-6 bottom-6 flex flex-wrap items-center gap-3 rounded-2xl p-4"
+            className="absolute inset-x-6 bottom-6 flex flex-col gap-2 rounded-2xl p-4"
             style={{
               backgroundColor: "rgba(255,253,247,0.93)",
               backdropFilter: "blur(8px)",
@@ -213,23 +217,52 @@ export function FindUsSection() {
               Построить маршрут:
             </span>
             {points.map((p) => (
-              <a
-                key={p.address}
-                href={routeUrl(p)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full px-4 transition-colors hover:opacity-85"
-                style={{
-                  backgroundColor: "var(--color-bg-dark)",
-                  color: "var(--color-accent-light)",
-                  fontFamily: "var(--font-body)",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  minHeight: 38,
-                }}
-              >
-                <MapPin size={15} /> {p.name}
-              </a>
+              <div key={p.address} className="flex flex-wrap items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--color-text)",
+                  }}
+                >
+                  <MapPin size={14} style={{ color: "var(--color-accent-dark)" }} />
+                  {p.name}:
+                </span>
+                <a
+                  href={yandexUrl(p)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-full px-3.5 transition-colors hover:opacity-85"
+                  style={{
+                    backgroundColor: "var(--color-bg-dark)",
+                    color: "var(--color-accent-light)",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    minHeight: 34,
+                  }}
+                >
+                  Яндекс.Карты
+                </a>
+                <a
+                  href={dgisUrl(p)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-full border px-3.5 transition-colors hover:bg-black/5"
+                  style={{
+                    borderColor: "rgba(31,26,14,0.2)",
+                    color: "var(--color-text)",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    minHeight: 34,
+                  }}
+                >
+                  2ГИС
+                </a>
+              </div>
             ))}
           </div>
         </motion.div>

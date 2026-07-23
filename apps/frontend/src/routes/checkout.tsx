@@ -512,7 +512,7 @@ function CheckoutPage() {
                             onSelect={() => update("delivery", "courier_nsk")}
                             icon={<MapPin size={18} />}
                             title="Доставка по Новосибирску"
-                            description="Курьером в день заказа или на следующий день"
+                            description="Курьером: заказ до 14:00 — в день заказа, позже — на следующий день"
                           />
                           <RadioCard
                             checked={form.delivery === "russia"}

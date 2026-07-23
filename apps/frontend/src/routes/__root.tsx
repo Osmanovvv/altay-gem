@@ -13,28 +13,52 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/context/CartContext";
 import { SettingsProvider } from "@/context/SettingsContext";
+import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
 import { fetchCategories, fetchSettings, type ApiCategory, type ApiSettings } from "@/lib/api";
 import { Toaster } from "sonner";
 
 function NotFoundComponent() {
+  // Глобальные шапка и подвал обязательны на ВСЕХ страницах, включая 404
+  // (ТЗ:104). notFound рендерится внутри RootComponent → провайдеры доступны.
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Страница не найдена</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Такой страницы нет или она была перемещена.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+    <>
+      <Header />
+      <main
+        className="flex items-center justify-center px-4"
+        style={{ background: "var(--color-bg-cream)", minHeight: "70vh", paddingTop: 96 }}
+      >
+        <div className="max-w-md py-16 text-center">
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 72,
+              fontWeight: 600,
+              color: "var(--color-accent-dark)",
+              lineHeight: 1,
+            }}
           >
-            На главную
-          </Link>
+            404
+          </h1>
+          <h2 className="mt-4 text-xl font-semibold" style={{ color: "var(--color-text)" }}>
+            Страница не найдена
+          </h2>
+          <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
+            Такой страницы нет или она была перемещена.
+          </p>
+          <div className="mt-6">
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-transform hover:-translate-y-0.5"
+              style={{ backgroundColor: "var(--color-accent)", color: "var(--color-bg-dark)" }}
+            >
+              На главную
+            </Link>
+          </div>
         </div>
-      </div>
-    </div>
+      </main>
+      <Footer />
+    </>
   );
 }
 
