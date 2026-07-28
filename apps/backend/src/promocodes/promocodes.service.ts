@@ -82,7 +82,7 @@ export class PromocodesService {
         validFrom: promo.validFrom,
         validTo: promo.validTo,
         usageLimit: promo.usageLimit,
-        categoryRestrictionSlug: promo.categoryRestriction?.slug ?? null,
+        categoryRestrictionSlugs: promo.categoryRestrictionSlugs,
       },
       lines,
       used,

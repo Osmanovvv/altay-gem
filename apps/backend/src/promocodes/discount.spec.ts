@@ -30,9 +30,9 @@ describe('evaluatePromocode', () => {
     }
   });
 
-  it('с ограничением категории: скидка только с подходящих позиций', () => {
+  it('с ограничением одной категории: скидка только с подходящих позиций', () => {
     const r = evaluatePromocode(
-      rules({ categoryRestrictionSlug: 'zdorovie-altaya' }),
+      rules({ categoryRestrictionSlugs: ['zdorovie-altaya'] }),
       cart,
       0,
       NOW,
@@ -41,12 +41,48 @@ describe('evaluatePromocode', () => {
     if (r.valid) {
       expect(r.discountRub).toBe(252); // 2520 * 10%
       expect(r.appliesTo).toBe('category');
+      expect(r.categorySlugs).toEqual(['zdorovie-altaya']);
     }
   });
 
-  it('корзина без товаров нужной категории — not_applicable', () => {
+  it('НЕСКОЛЬКО категорий: скидка со всех подходящих позиций', () => {
     const r = evaluatePromocode(
-      rules({ categoryRestrictionSlug: 'kosmetika' }),
+      rules({ categoryRestrictionSlugs: ['zdorovie-altaya', 'syry-i-maslo'] }),
+      cart,
+      0,
+      NOW,
+    );
+    expect(r.valid).toBe(true);
+    if (r.valid) {
+      // обе позиции подходят: (2520 + 357) * 10% = 288
+      expect(r.discountRub).toBe(288);
+      expect(r.appliesTo).toBe('category');
+    }
+  });
+
+  it('несколько категорий, совпадает только одна — считаем по ней', () => {
+    const r = evaluatePromocode(
+      rules({ categoryRestrictionSlugs: ['kosmetika', 'syry-i-maslo'] }),
+      cart,
+      0,
+      NOW,
+    );
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.discountRub).toBe(36); // 357 * 10% = 35.7 -> 36
+  });
+
+  it('пустой список категорий ≡ «на всю корзину»', () => {
+    const r = evaluatePromocode(rules({ categoryRestrictionSlugs: [] }), cart, 0, NOW);
+    expect(r.valid).toBe(true);
+    if (r.valid) {
+      expect(r.discountRub).toBe(288);
+      expect(r.appliesTo).toBe('all');
+    }
+  });
+
+  it('корзина без товаров нужных категорий — not_applicable', () => {
+    const r = evaluatePromocode(
+      rules({ categoryRestrictionSlugs: ['kosmetika'] }),
       cart,
       0,
       NOW,

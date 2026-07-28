@@ -26,6 +26,7 @@ import {
   webhookEvents,
 } from '../db/schema';
 import { TelegramService } from '../notifications/telegram.service';
+import { isDiscountEligible } from '../promocodes/discount';
 import { PromocodesService } from '../promocodes/promocodes.service';
 import { idempotencyDecision } from './idempotency';
 import {
@@ -360,9 +361,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // 3. промокод (та же серверная валидация, что /promo/validate)
     let discountRub = 0;
     let promoCode: string | null = null;
-    // Категория, на которую действует скидка (null — на весь заказ). Нужна для
+    // Категории, на которые действует скидка (null — на весь заказ). Нужны для
     // чека: скидку распределяем только по подпадающим строкам.
-    let promoCategorySlug: string | null = null;
+    let promoCategorySlugs: string[] | null = null;
     if (dto.promoCode?.trim()) {
       const promo = await this.promocodes.validate(dto.promoCode, mergedItems);
       if (!promo.valid) {
@@ -374,7 +375,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       }
       discountRub = promo.discountRub;
       promoCode = promo.code;
-      promoCategorySlug = promo.categorySlug ?? null;
+      promoCategorySlugs = promo.categorySlugs ?? null;
     }
 
     const subtotalRub = lines.reduce(
@@ -611,9 +612,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           lines.map((l) => ({
             priceKopecks: rubToKopecks(l.p.priceRub),
             quantity: l.quantity,
-            discountEligible:
-              promoCategorySlug === null ||
-              l.p.categorySlug === promoCategorySlug,
+            discountEligible: isDiscountEligible(
+              l.p.categorySlug,
+              promoCategorySlugs,
+            ),
             isMarked: l.p.isMarked,
           })),
           rubToKopecks(discountRub),
@@ -670,10 +672,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
               : 'шт',
           isMarked: p.isMarked,
           // Снапшот eligibility скидки: категорийный промокод действует только
-          // на свою категорию — отложенный чек (шаг 4) строится по этому полю.
-          discountEligible:
-            promoCategorySlug === null ||
-            p.categorySlug === promoCategorySlug,
+          // на свои категории — отложенный чек (шаг 4) строится по этому полю.
+          discountEligible: isDiscountEligible(p.categorySlug, promoCategorySlugs),
           sumKopecks: p.priceRub * quantity * 100,
         })),
       );
@@ -730,7 +730,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           deliveryRub,
           totalRub,
           dto,
-          promoCategorySlug,
+          promoCategorySlugs,
         ),
       });
       if (payment) {
@@ -1857,7 +1857,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     deliveryRub: number,
     totalRub: number,
     dto: CreateOrderDto,
-    discountCategorySlug: string | null,
+    discountCategorySlugs: string[] | null,
   ): Receipt | null {
     if (!this.receiptConfig) return null;
     // Маркированный заказ: кодов «Честного знака» ещё нет (сканируют при
@@ -1876,9 +1876,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             description: l.p.name,
             priceKopecks: rubToKopecks(l.p.priceRub),
             quantity: l.quantity,
-            discountEligible:
-              discountCategorySlug === null ||
-              l.p.categorySlug === discountCategorySlug,
+            discountEligible: isDiscountEligible(
+              l.p.categorySlug,
+              discountCategorySlugs,
+            ),
             // маркировку НЕ передаём: в чеке предоплаты кодов нет
           })),
           discountKopecks: rubToKopecks(discountRub),
@@ -1903,11 +1904,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           description: l.p.name,
           priceKopecks: rubToKopecks(l.p.priceRub),
           quantity: l.quantity,
-          // Категорийная скидка действует только на свою категорию (иначе
+          // Категорийная скидка действует только на свои категории (иначе
           // цена чужой позиции в фиск. чеке была бы занижена).
-          discountEligible:
-            discountCategorySlug === null ||
-            l.p.categorySlug === discountCategorySlug,
+          discountEligible: isDiscountEligible(
+            l.p.categorySlug,
+            discountCategorySlugs,
+          ),
         })),
         discountKopecks: rubToKopecks(discountRub),
         deliveryKopecks: rubToKopecks(deliveryRub),

@@ -2,6 +2,8 @@ import type { Core } from '@strapi/strapi';
 import { errors } from '@strapi/utils';
 import path from 'node:path';
 
+import { applyFieldHints } from './field-hints';
+
 interface HeroLifecycleEvent {
   result?: { id?: number; heroProduct?: boolean };
 }
@@ -163,6 +165,11 @@ export default {
         invalidateCatalogCache(strapi);
       },
     });
+
+    // Подсказки под полями формы (запрос ПМ). Пишутся ПОСЛЕ bootstrap'а
+    // плагинов — content-manager к этому моменту уже засинхронил конфигурацию,
+    // иначе наши тексты затёрло бы дефолтами.
+    await applyFieldHints(strapi);
 
     const editor = await strapi.db
       .query('admin::role')

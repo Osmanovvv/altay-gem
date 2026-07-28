@@ -5,7 +5,7 @@ import {
   Param,
   Query,
 } from '@nestjs/common';
-import { StrapiService } from '../strapi/strapi.service';
+import { relationSlugs, StrapiService } from '../strapi/strapi.service';
 import { CatalogService, ProductCard } from './catalog.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
 
@@ -178,7 +178,9 @@ export class CatalogController {
         (c) => c.text,
       ),
       promocode: (p.promocode as { code: string } | null)?.code ?? null,
-      categorySlug: (p.category as { slug: string } | null)?.slug ?? null,
+      // У акции может быть несколько категорий; кнопка «В каталог» на витрине
+      // ведёт в первую (контракт фронта — одна категория в фильтре).
+      categorySlug: relationSlugs(p.category)[0] ?? null,
       image: this.strapi.mediaUrl(
         p.image as { url: string } | null | undefined,
         { original: true },

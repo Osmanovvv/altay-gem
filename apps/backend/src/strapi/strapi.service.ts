@@ -50,6 +50,27 @@ export interface StrapiCategory {
 }
 
 /**
+ * Слаги связанных категорий из ответа Strapi.
+ *
+ * Терпит ОБА формата — одиночный объект (relation oneToOne) и массив
+ * (manyToMany): Strapi и бэкенд деплоятся разными артефактами, и в окне
+ * между рестартами формат может не совпасть.
+ *
+ * ⚠️ Защита ОДНОСТОРОННЯЯ и задаёт порядок деплоя: НОВЫЙ БЭКЕНД ПЕРВЫМ.
+ * Новый бэкенд + старая Strapi (объект) — поведение 1-в-1 прежнее, безопасно.
+ * Старый бэкенд + новая Strapi (массив) — старый код читает `.slug` у массива,
+ * получает undefined, ограничение категорий ИСЧЕЗАЕТ и скидка растекается на
+ * всю корзину (потеря денег). Поэтому же ОТКАТ ОДНОГО БЭКЕНДА после миграции
+ * схемы Strapi запрещён — откатывать только парой.
+ */
+export function relationSlugs(value: unknown): string[] {
+  const items = Array.isArray(value) ? value : value ? [value] : [];
+  return items
+    .map((x) => (x as { slug?: unknown } | null)?.slug)
+    .filter((s): s is string => typeof s === 'string' && s.length > 0);
+}
+
+/**
  * Клиент контентного API Strapi (источник витринных данных — ТЗ р.4).
  * Доступ по серверному API-токену; наружу Strapi не публикуется.
  */
@@ -166,7 +187,8 @@ export class StrapiService {
     validFrom?: string | null;
     validTo?: string | null;
     usageLimit?: number | null;
-    categoryRestriction?: { slug: string } | null;
+    /** Категории ограничения; пусто — скидка на всю корзину. */
+    categoryRestrictionSlugs: string[];
   } | null> {
     const res = await this.fetchJson<{ data: Array<Record<string, unknown>> }>(
       `/api/promocodes?filters[code][$eqi]=${encodeURIComponent(code)}&populate[categoryRestriction]=true`,
@@ -180,8 +202,7 @@ export class StrapiService {
       validFrom: (p.validFrom as string) ?? null,
       validTo: (p.validTo as string) ?? null,
       usageLimit: p.usageLimit == null ? null : Number(p.usageLimit),
-      categoryRestriction:
-        (p.categoryRestriction as { slug: string } | null) ?? null,
+      categoryRestrictionSlugs: relationSlugs(p.categoryRestriction),
     };
   }
 

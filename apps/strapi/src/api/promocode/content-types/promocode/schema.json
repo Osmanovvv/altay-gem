@@ -32,7 +32,7 @@
     },
     "categoryRestriction": {
       "type": "relation",
-      "relation": "oneToOne",
+      "relation": "manyToMany",
       "target": "api::category.category"
     },
     "validFrom": {

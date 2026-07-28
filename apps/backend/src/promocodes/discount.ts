@@ -10,7 +10,28 @@ export interface PromocodeRules {
   validFrom?: string | null;
   validTo?: string | null;
   usageLimit?: number | null;
-  categoryRestrictionSlug?: string | null;
+  /**
+   * Категории, на которые действует скидка. Пусто/не задано — на всю корзину.
+   * Список (а не одна категория) — запрос ПМ: акция может охватывать
+   * несколько категорий.
+   */
+  categoryRestrictionSlugs?: string[] | null;
+}
+
+/**
+ * Подпадает ли позиция под скидку промокода. Единственный источник этого
+ * правила: им пользуются и расчёт скидки, и снапшот discountEligible в
+ * заказе, и сборка фискального чека — расхождение между ними означало бы
+ * «в чеке скидка не там, где в корзине».
+ */
+export function isDiscountEligible(
+  lineCategorySlug: string | null,
+  promoCategorySlugs: string[] | null | undefined,
+): boolean {
+  if (!promoCategorySlugs || promoCategorySlugs.length === 0) return true;
+  return (
+    lineCategorySlug !== null && promoCategorySlugs.includes(lineCategorySlug)
+  );
 }
 
 export interface CartLine {
@@ -36,6 +57,13 @@ export type PromoResult =
       discountPercent: number;
       discountRub: number;
       appliesTo: 'all' | 'category';
+      /** Категории ограничения; null — скидка на всю корзину. */
+      categorySlugs: string[] | null;
+      /**
+       * @deprecated Первая категория — только для обратной совместимости
+       * внешних клиентов (MAX mini app), которые читали одиночный ключ.
+       * Новый код использует categorySlugs. Удалить в следующем релизе.
+       */
       categorySlug: string | null;
       message: string;
     }
@@ -78,9 +106,13 @@ export function evaluatePromocode(
   }
   if (cart.length === 0) return reject('empty_cart');
 
-  const restricted = rules.categoryRestrictionSlug ?? null;
+  // Пустой список ≡ «без ограничения»: так контент-менеджер делает скидку
+  // на всю корзину, просто не выбирая категории.
+  const restricted = rules.categoryRestrictionSlugs?.length
+    ? rules.categoryRestrictionSlugs
+    : null;
   const eligible = restricted
-    ? cart.filter((l) => l.categorySlug === restricted)
+    ? cart.filter((l) => isDiscountEligible(l.categorySlug, restricted))
     : cart;
   const baseRub = eligible.reduce(
     (sum, l) => sum + l.priceRub * l.quantity,
@@ -97,7 +129,8 @@ export function evaluatePromocode(
     discountPercent: rules.discountPercent,
     discountRub,
     appliesTo: restricted ? 'category' : 'all',
-    categorySlug: restricted,
+    categorySlugs: restricted,
+    categorySlug: restricted?.[0] ?? null,
     message: `Промокод применён: скидка ${rules.discountPercent}%`,
   };
 }
