@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -68,6 +68,15 @@ function CatalogPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Поиск по каталогу (правка ПМ — строка поиска перенесена сюда). Поле и его
+  // дебаунс-значение: сам поиск выполняет бэкенд через параметр q (ТЗ 6.9),
+  // тот же, что использует страница /search.
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    const id = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
 
   // данные с сервера: фильтрация/сортировка/пагинация — на бэкенде (ТЗ 6.3)
   const [data, setData] = useState(initial.catalog);
@@ -88,6 +97,7 @@ function CatalogPage() {
     const controller = new AbortController();
     const t = window.setTimeout(() => {
       fetchCatalog({
+        q: searchQuery || undefined,
         category: filters.category ?? undefined,
         subcategory: filters.subcategory ?? undefined,
         priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
@@ -107,7 +117,12 @@ function CatalogPage() {
       controller.abort();
       window.clearTimeout(t);
     };
-  }, [filters, sort, page]);
+  }, [filters, sort, page, searchQuery]);
+
+  // Новый запрос — всегда с первой страницы (иначе можно застрять на пустой).
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   const pageItems = useMemo(() => data.items.map(toProduct), [data]);
   const pages = data.pagination.pageCount;
@@ -199,6 +214,45 @@ function CatalogPage() {
             </h1>
           </div>
 
+          {/* Поиск по каталогу (правка ПМ): строка ниже заголовка. Ищет
+              бэкенд по параметру q; результат заменяет сетку и счётчик. */}
+          <div className="relative mt-6 w-full" style={{ maxWidth: 620 }}>
+            <Search
+              size={20}
+              className="pointer-events-none absolute top-1/2 left-5 -translate-y-1/2"
+              style={{ color: "var(--color-text-muted)" }}
+            />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Поиск по каталогу..."
+              aria-label="Поиск по каталогу"
+              className="w-full rounded-full outline-none transition-shadow focus:shadow-lg"
+              style={{
+                height: 56,
+                padding: "0 52px 0 52px",
+                fontFamily: "var(--font-body)",
+                fontSize: 16,
+                color: "var(--color-text)",
+                backgroundColor: "#fffdf7",
+                border: "1px solid rgba(31,26,14,0.1)",
+                boxShadow: "var(--shadow-card)",
+              }}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                aria-label="Очистить поиск"
+                onClick={() => setSearchInput("")}
+                className="absolute top-1/2 right-3 inline-flex -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-black/5"
+                style={{ width: 40, height: 40, color: "var(--color-text-muted)" }}
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
           {/* Mobile filters trigger */}
           <button
             type="button"
@@ -235,7 +289,40 @@ function CatalogPage() {
             <div className="flex min-w-0 flex-col gap-5">
               <CatalogFilters count={totalCount} sort={sort} onSortChange={setSort} />
 
-              <ProductGrid products={pageItems} onAdd={onAdd} />
+              {totalCount === 0 ? (
+                <div
+                  className="flex flex-col items-center rounded-3xl px-6 py-14 text-center"
+                  style={{
+                    backgroundColor: "#fffdf7",
+                    border: "1px dashed rgba(31,26,14,0.15)",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: 22,
+                      fontWeight: 600,
+                      color: "var(--color-text)",
+                    }}
+                  >
+                    Ничего не найдено
+                  </p>
+                  <p
+                    className="mt-2"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: 14,
+                      color: "var(--color-text-muted)",
+                    }}
+                  >
+                    {searchQuery
+                      ? `По запросу «${searchQuery}» товаров нет — попробуйте изменить запрос.`
+                      : "Под выбранные фильтры товаров нет — попробуйте их сбросить."}
+                  </p>
+                </div>
+              ) : (
+                <ProductGrid products={pageItems} onAdd={onAdd} />
+              )}
 
               {pages > 1 && (
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
