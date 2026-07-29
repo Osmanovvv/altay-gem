@@ -119,10 +119,12 @@ export function PromoBanner({ banners }: PromoBannerProps) {
                 }}
               />
 
-              {/* Text: при видимых стрелках паддинг шире зоны стрелок
-                  (12+44px), чтобы стрелка не налезала на текст (правка ПМ). */}
+              {/* Text: при видимых стрелках паддинг заметно шире зоны стрелок.
+                  Стрелка занимает 12+44=56px от края, поэтому md:px-16 (64px)
+                  давал зазор всего 8px — визуально «стрелка на тексте» (правка
+                  ПМ). Берём md:px-24 (96px) → чистые 40px воздуха. */}
               <div
-                className={`relative flex-1 px-6 py-8 md:py-12 ${count > 1 ? "md:px-16" : "md:px-12"}`}
+                className={`relative flex-1 px-6 py-8 md:py-12 ${count > 1 ? "md:px-24" : "md:px-12"}`}
                 style={{ color: promo.accentColor }}
               >
                 {promo.badge && (
