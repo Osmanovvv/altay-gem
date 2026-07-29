@@ -40,6 +40,14 @@ const envSchema = z.object({
   // Публичный адрес сайта — для ссылки «Открыть заказ» в Telegram-уведомлении.
   PUBLIC_SITE_URL: z.string().optional(),
 
+  // Почта покупателю (дубль заказа). Пусто — письма не отправляются.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  SMTP_SECURE: z.string().optional(),
+
   // Этап 2 — Эвотор. ДВА разных токена (перепутать — ошибка №1 интеграции):
   // CLOUD — юзер-токен Облака (по нему МЫ ходим в api.evotor.ru; штатно
   //   приходит сам при установке приложения, env — ручной запасной вариант);

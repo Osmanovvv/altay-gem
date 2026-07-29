@@ -35,6 +35,8 @@ import {
 } from './order-status';
 import { PaymentService } from './payment.service';
 import { allocateAcrossStores } from './allocate-stores';
+import { MailerService } from './mailer.service';
+import { buildOrderEmail } from './order-email';
 import { mergeDuplicateItems } from './merge-items';
 import {
   isPickupPoint,
@@ -143,6 +145,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     private readonly strapi: StrapiService,
     private readonly telegram: TelegramService,
     private readonly payment: PaymentService,
+    private readonly mailer: MailerService,
     config: ConfigService,
   ) {
     this.paymentTtlMin = Number(
@@ -742,6 +745,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    // Дубль заказа на почту покупателю (запрос ПМ). Шлём ПОСЛЕ создания
+    // платежа — чтобы в письмо попала ссылка на оплату. Fire-and-forget:
+    // заказ уже создан и оплачивается, ждать SMTP в HTTP-ответе незачем,
+    // а сбой почты не должен выглядеть как сбой заказа.
+    void this.sendOrderEmail(dto, lines, response, deliveryRub);
+
     if (idempotencyKey) {
       // Ключ захвачен заглушкой в create() ДО транзакции — дописываем ответ.
       await this.db
@@ -1021,6 +1030,50 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       })),
       instruction: this.instructionFor(order.deliveryMethod, order.status),
     };
+  }
+
+  /**
+   * Письмо-дубль заказа покупателю (запрос ПМ). Никогда не бросает: заказ уже
+   * создан, а письмо — дополнение. Без e-mail покупателя и без настроенного
+   * SMTP просто ничего не делает.
+   */
+  private async sendOrderEmail(
+    dto: CreateOrderDto,
+    lines: Array<{ p: ProductInternal; quantity: number }>,
+    response: OrderResponse,
+    deliveryRub: number,
+  ): Promise<void> {
+    try {
+      const to = dto.email?.trim();
+      if (!to || !this.mailer.enabled) return;
+      const { subject, text, html } = buildOrderEmail({
+        orderNumber: response.orderNumber,
+        orderUrl: `${this.siteUrl}/order/${response.id}?token=${response.accessToken}`,
+        customerName: dto.name?.trim() ?? '',
+        needsPayment: response.status === 'awaiting_payment',
+        paymentUrl: response.paymentUrl,
+        // Та же формулировка, что покупатель видит на странице заказа.
+        deliveryLabel: this.instructionFor(dto.deliveryMethod, response.status),
+        items: lines.map(({ p, quantity }) => ({
+          name: p.name,
+          quantity,
+          unit:
+            p.measure === 'кг'
+              ? `порция ${safePortionMassG(p.portionMassG)} г`
+              : 'шт',
+          sumRub: p.priceRub * quantity,
+        })),
+        subtotalRub: response.totals.subtotalRub,
+        discountRub: response.totals.discountRub,
+        deliveryRub,
+        totalRub: response.totals.totalRub,
+      });
+      await this.mailer.send(to, subject, text, html);
+    } catch (e) {
+      this.log.warn(
+        `письмо о заказе ${response.orderNumber} не собралось: ${(e as Error).message}`,
+      );
+    }
   }
 
   private instructionFor(method: string, status: string): string {

@@ -6,13 +6,14 @@ import { StrapiService } from '../strapi/strapi.service';
 import { DeliveryController } from './delivery.controller';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { MailerService } from './mailer.service';
 import { PaymentService } from './payment.service';
 import { WebhooksController } from './webhooks.controller';
 
 @Module({
   imports: [PromocodesModule, NotificationsModule],
   controllers: [OrdersController, DeliveryController, WebhooksController],
-  providers: [OrdersService, CatalogService, StrapiService, PaymentService],
+  providers: [OrdersService, CatalogService, StrapiService, PaymentService, MailerService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

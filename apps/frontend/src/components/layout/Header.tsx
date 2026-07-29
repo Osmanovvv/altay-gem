@@ -129,11 +129,14 @@ export function Header({ phone: phoneProp }: HeaderProps) {
                 <Phone size={20} />
               </a>
             )}
+            {/* Поиск ведёт в каталог (правка ПМ): строка поиска теперь живёт
+                там же, где фильтры и сетка товаров — отдельная страница
+                /search осталась рабочей для старых ссылок. */}
             <Link
-              to="/search"
+              to="/catalog"
               className="inline-flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
               style={{ width: 44, height: 44, color: textColor }}
-              aria-label="Поиск"
+              aria-label="Поиск по каталогу"
             >
               <Search size={20} />
             </Link>
