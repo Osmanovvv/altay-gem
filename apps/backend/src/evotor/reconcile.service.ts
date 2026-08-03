@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, rename, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import * as XLSX from 'xlsx';
 import { DB, type Database } from '../db/database.module';
@@ -15,6 +15,7 @@ import { syncLog, webhookEvents } from '../db/schema';
 import { TelegramService } from '../notifications/telegram.service';
 import { evaluateHealth } from './monitor';
 import { UUID_FORM } from './parse';
+import { reconcileFileName } from './reconcile-upload';
 import {
   exportIsFresh,
   msUntilDailyRun,
@@ -248,6 +249,31 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
       .orderBy(desc(syncLog.createdAt))
       .limit(1);
     return row?.status ?? null;
+  }
+
+  /**
+   * Приём свежей выгрузки магазина из админки (без scp на сервер).
+   * Пишем атомарно: сначала во временный файл, затем rename — иначе ночная
+   * сверка может подхватить наполовину записанный файл и «увидеть» неполный
+   * каталог (а неполный каталог = массовая архивация товаров).
+   */
+  async saveExport(storeId: string, data: Buffer): Promise<{
+    file: string;
+    bytes: number;
+    savedAt: Date;
+  }> {
+    if (!this.dir) {
+      throw new Error(
+        'каталог выгрузок не настроен (EVOTOR_RECONCILE_DIR) — загрузка недоступна',
+      );
+    }
+    const file = reconcileFileName(storeId);
+    const target = join(this.dir, file);
+    const tmp = `${target}.part-${Date.now()}`;
+    await writeFile(tmp, data);
+    await rename(tmp, target);
+    this.log.log(`выгрузка принята: ${file} (${data.length} байт)`);
+    return { file, bytes: data.length, savedAt: new Date() };
   }
 
   /** Снимок состояния интеграции для админ-мониторинга (GET /admin/evotor/status). */

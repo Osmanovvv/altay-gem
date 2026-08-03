@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { json, urlencoded } from 'express';
+import { json, raw, urlencoded } from 'express';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
@@ -23,6 +23,12 @@ async function bootstrap() {
   // строк все остальные JSON-эндпоинты (заказы!) получают body === undefined.
   // Повторный разбор Эвотор-тел не происходит: body-parser пропускает уже
   // прочитанный запрос (onFinished.isFinished), поэтому 100 КБ здесь не режут 6 МБ.
+  // Загрузка выгрузки Эвотора (xlsx ~350 КБ) — сырым телом, чтобы не тащить
+  // multipart-зависимость ради одного админского маршрута.
+  app.use(
+    '/api/v1/admin/evotor/upload',
+    raw({ type: () => true, limit: '25mb' }),
+  );
   app.use(json());
   app.use(urlencoded({ extended: true }));
   // CORS: витрина (dev 8080) и будущие домены — из env (ТЗ р.14)

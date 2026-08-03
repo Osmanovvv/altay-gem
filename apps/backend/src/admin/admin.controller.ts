@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -28,6 +29,7 @@ import { CatalogService } from '../catalog/catalog.service';
 import { DB, type Database } from '../db/database.module';
 import { evotorProducts } from '../db/schema';
 import { ReconcileService } from '../evotor/reconcile.service';
+import { isXlsxUpload } from '../evotor/reconcile-upload';
 import {
   ORDER_STATUSES,
   OrderStatus,
@@ -225,5 +227,45 @@ export class AdminController {
   @UseGuards(AdminGuard)
   runReconcile() {
     return this.reconcile.runReconcile();
+  }
+
+  /**
+   * Загрузка свежей выгрузки магазина (xlsx из товароучётки) — вместо scp
+   * на сервер. Тело — сырой файл; имя на диске собирается из storeId, чтобы
+   * присланное имя не могло увести запись из каталога выгрузок.
+   * Сверку НЕ запускаем автоматически: сначала кладём оба магазина, потом
+   * один прогон — иначе первый файл применится с ещё старым вторым.
+   */
+  @Post('evotor/upload')
+  @HttpCode(200)
+  @UseGuards(AdminGuard)
+  async uploadExport(
+    @Query('storeId') storeId: string,
+    @Query('filename') filename: string | undefined,
+    @Body() body: Buffer,
+  ) {
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      throw new BadRequestException(
+        'пустое тело запроса — пришлите файл выгрузки как есть (Content-Type: application/octet-stream)',
+      );
+    }
+    // Имя нужно лишь для проверки формата: xlsx — это zip, первые байты «PK».
+    const name = (filename ?? 'export.xlsx').trim();
+    if (!isXlsxUpload(name, 'application/octet-stream')) {
+      throw new BadRequestException(
+        'ожидается файл .xlsx (выгрузка «Товары → Обмен → Скачать в Excel»)',
+      );
+    }
+    if (body[0] !== 0x50 || body[1] !== 0x4b) {
+      throw new BadRequestException(
+        'файл не похож на .xlsx (нет сигнатуры ZIP) — возможно, загружен .xls или CSV',
+      );
+    }
+    try {
+      const saved = await this.reconcile.saveExport(storeId, body);
+      return { ok: true, ...saved };
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
   }
 }
