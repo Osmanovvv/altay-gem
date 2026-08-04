@@ -1,5 +1,41 @@
 import { describe, expect, it } from 'bun:test';
-import { classifyReconcile, exportIsFresh, msUntilDailyRun } from './reconcile';
+import {
+  classifyReconcile,
+  exportIsFresh,
+  fileQtyApplies,
+  msUntilDailyRun,
+} from './reconcile';
+
+/**
+ * Взаимодействие файла выгрузки с чеками-как-сверкой: остаток из файла пишем,
+ * только если по товару НЕТ более свежего абсолюта из чека (stock_asof).
+ * Иначе файл, снятый утром, ночью откатил бы продажи, сверенные Эвотором днём.
+ */
+describe('fileQtyApplies', () => {
+  const T0 = Date.parse('2026-08-04T10:00:00Z'); // момент выгрузки файла
+  const H = 3_600_000;
+
+  it('абсолюта из чеков не было → файл применяется', () => {
+    expect(fileQtyApplies(null, T0)).toBe(true);
+  });
+
+  it('абсолют старее файла → файл свежее, применяется', () => {
+    expect(fileQtyApplies(T0 - 2 * H, T0)).toBe(true);
+  });
+
+  it('абсолют новее файла → файл НЕ перезаписывает (откатил бы продажи)', () => {
+    expect(fileQtyApplies(T0 + 2 * H, T0)).toBe(false);
+  });
+
+  it('ровно одно время → файл применяется (равный снимок, запись идемпотентна)', () => {
+    expect(fileQtyApplies(T0, T0)).toBe(true);
+  });
+
+  it('времени файла нет (легаси-вызов) → старое авторитетное поведение', () => {
+    expect(fileQtyApplies(T0 + 2 * H, null)).toBe(true);
+    expect(fileQtyApplies(null, undefined)).toBe(true);
+  });
+});
 
 /**
  * Страховка от УСТАРЕВШЕЙ выгрузки. Сверка авторитетна: она выравнивает

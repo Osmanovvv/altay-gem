@@ -158,7 +158,9 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         const rows = this.readRows(path);
-        const s = await reconcileStore(this.db, storeId, rows);
+        // mtime файла = момент снимка: остатки, сверенные чеками ПОЗЖЕ этого
+        // времени, файл не перезаписывает (см. fileQtyApplies).
+        const s = await reconcileStore(this.db, storeId, rows, mtimeMs);
         summaries.push(s);
         this.log.log(
           `сверка ${storeId}: записано ${s.upserted}, цена ${s.priceChanged}, остаток ${s.qtyChanged}, новых ${s.isNew}, архив ${s.archived}`,

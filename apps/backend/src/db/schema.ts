@@ -125,6 +125,14 @@ export const evotorProducts = pgTable(
     matchKey: text('match_key').notNull(),
     /** Полный ответ Эвотора — для отладки и будущих полей. */
     raw: jsonb('raw'),
+    /**
+     * Время документа последнего ПРИМЕНЁННОГО абсолютного остатка
+     * («чек-как-сверка»: initial_quantity ± qty из REST-документа, либо файл
+     * выгрузки). Охраняет порядок: абсолют старее этой метки не применяется,
+     * дельта старее — тоже (её эффект уже внутри снимка). null — абсолютов
+     * не было, действуют только дельты чеков.
+     */
+    stockAsof: timestamp('stock_asof', { withTimezone: true }),
     syncedAt: timestamp('synced_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

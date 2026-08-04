@@ -70,15 +70,31 @@ export function exportIsFresh(
   return ageMs <= maxAgeHours * 3_600_000;
 }
 
+/**
+ * Остаток из ФАЙЛА пишем, только если по товару нет более свежего абсолюта
+ * из чеков (stock_asof, «чек-как-сверка»). Иначе файл, выгруженный утром,
+ * ночью откатил бы продажи, уже сверенные Эвотором через initial_quantity.
+ * exportAtMs null/undefined — легаси-вызов (CLI-импорт): файл авторитетен.
+ */
+export function fileQtyApplies(
+  stockAsofMs: number | null,
+  exportAtMs: number | null | undefined,
+): boolean {
+  if (exportAtMs === null || exportAtMs === undefined) return true;
+  return stockAsofMs === null || stockAsofMs <= exportAtMs;
+}
+
 /** Текущее состояние товара в реплике (для сравнения с выгрузкой). */
 interface ReplicaSnapshot {
   priceKopecks: number;
   quantity: string;
+  /** Время последнего абсолюта из чеков (мс), null — не было. */
+  stockAsofMs: number | null;
 }
 
 /** Что выгрузка меняет в товаре (для журнала расхождений). Чистая функция. */
 export function classifyReconcile(
-  current: ReplicaSnapshot | undefined,
+  current: { priceKopecks: number; quantity: string } | undefined,
   imported: { priceKopecks: number | null; quantity: number | null },
 ): { isNew: boolean; priceChanged: boolean; qtyChanged: boolean } {
   if (!current) return { isNew: true, priceChanged: false, qtyChanged: false };
@@ -106,6 +122,12 @@ export async function reconcileStore(
   db: Database,
   storeId: string,
   rows: Record<string, unknown>[],
+  /**
+   * Время СНЯТИЯ выгрузки (мс; на практике — mtime файла). Задано → остаток
+   * пишется только товарам без более свежего абсолюта из чеков (fileQtyApplies)
+   * и штампует stock_asof. Не задано (CLI-импорт) — файл авторитетен всем.
+   */
+  exportAtMs?: number | null,
 ): Promise<ReconcileSummary> {
   const parsed = rows
     .map(parseGoodsExportRow)
@@ -130,6 +152,7 @@ export async function reconcileStore(
       evotorUuid: evotorProducts.evotorUuid,
       priceKopecks: evotorProducts.priceKopecks,
       quantity: evotorProducts.quantity,
+      stockAsof: evotorProducts.stockAsof,
     })
     .from(evotorProducts)
     .where(
@@ -141,7 +164,11 @@ export async function reconcileStore(
   const current = new Map<string, ReplicaSnapshot>(
     before.map((r) => [
       r.evotorUuid,
-      { priceKopecks: r.priceKopecks, quantity: r.quantity },
+      {
+        priceKopecks: r.priceKopecks,
+        quantity: r.quantity,
+        stockAsofMs: r.stockAsof ? new Date(r.stockAsof).getTime() : null,
+      },
     ]),
   );
   const replicaBefore = before.length;
@@ -156,9 +183,17 @@ export async function reconcileStore(
     const prev = current.get(p.uuid);
     try {
       const cls = classifyReconcile(prev, p);
+      // Остаток пишем, только если из чеков не пришёл абсолют СВЕЖЕЕ файла
+      // (fileQtyApplies) — иначе утренний файл откатил бы дневные продажи.
+      const qtyWrite =
+        p.quantity !== null &&
+        fileQtyApplies(prev?.stockAsofMs ?? null, exportAtMs);
       if (cls.isNew) isNew += 1;
       if (cls.priceChanged) priceChanged += 1;
-      if (cls.qtyChanged) qtyChanged += 1;
+      if (cls.qtyChanged && qtyWrite) qtyChanged += 1;
+      // Штамп времени снимка: последующие дельты/абсолюты старее файла — мимо.
+      const asofStamp =
+        qtyWrite && exportAtMs != null ? new Date(exportAtMs) : undefined;
 
       await db
         .insert(evotorProducts)
@@ -181,6 +216,7 @@ export async function reconcileStore(
           isArchived: false, // присутствует в выгрузке — не архив
           matchKey: p.matchKey,
           raw: p.raw,
+          ...(asofStamp && { stockAsof: asofStamp }),
         })
         .onConflictDoUpdate({
           target: [evotorProducts.storeId, evotorProducts.evotorUuid],
@@ -198,10 +234,11 @@ export async function reconcileStore(
             isArchived: false, // вернулся в выгрузку — снимаем архив
             matchKey: p.matchKey,
             raw: p.raw,
-            // Цену/остаток/«В продаже» перезаписываем авторитетно, НО пустые
-            // значения выгрузки не затирают текущее (дыра в отчёте ≠ изменение).
+            // Цену/«В продаже» перезаписываем авторитетно, НО пустые значения
+            // выгрузки не затирают текущее (дыра в отчёте ≠ изменение).
             ...(p.priceKopecks !== null && { priceKopecks: p.priceKopecks }),
-            ...(p.quantity !== null && { quantity: String(p.quantity) }),
+            ...(qtyWrite && { quantity: String(p.quantity) }),
+            ...(asofStamp && { stockAsof: asofStamp }),
             ...(p.allowToSell !== null && { allowToSell: p.allowToSell }),
             syncedAt: sql`now()`,
             updatedAt: sql`now()`,
@@ -210,8 +247,10 @@ export async function reconcileStore(
       upserted += 1;
 
       // ТЗ п.6: расхождение — поимённо в журнал (товар, старое→новое), не только
-      // счётчик. prev существует, только если это не новый товар.
-      if (prev && (cls.priceChanged || cls.qtyChanged)) {
+      // счётчик. prev существует, только если это не новый товар. Остаток
+      // попадает в журнал, лишь когда он реально ПРИМЕНЁН (qtyWrite): скип
+      // из-за более свежего чека — не расхождение, а норма.
+      if (prev && (cls.priceChanged || (cls.qtyChanged && qtyWrite))) {
         try {
           await db.insert(syncLog).values({
             direction: 'import',
@@ -225,10 +264,11 @@ export async function reconcileStore(
                   priceBefore: prev.priceKopecks,
                   priceAfter: p.priceKopecks,
                 }),
-                ...(cls.qtyChanged && {
-                  qtyBefore: prev.quantity,
-                  qtyAfter: p.quantity,
-                }),
+                ...(cls.qtyChanged &&
+                  qtyWrite && {
+                    qtyBefore: prev.quantity,
+                    qtyAfter: p.quantity,
+                  }),
               },
             },
           });

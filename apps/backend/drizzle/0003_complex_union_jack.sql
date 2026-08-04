@@ -1,0 +1,1 @@
+ALTER TABLE "evotor_products" ADD COLUMN "stock_asof" timestamp with time zone;

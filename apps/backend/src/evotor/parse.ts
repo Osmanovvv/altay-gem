@@ -15,7 +15,24 @@ export interface ParsedReceipt {
   /** SELL — продажа, PAYBACK — возврат; BUY/BUYBACK — закупки (игнорируем). */
   type: string;
   storeId: string | null;
-  positions: Array<{ productId: string; quantity: number }>;
+  /**
+   * Время САМОГО документа (close_date REST-документа / data.dateTime вебхука
+   * ver.2), мс epoch. null — документ времени не несёт. timestamp конверта
+   * события сюда НЕ подставляем: это время доставки, а не операции — им нельзя
+   * упорядочивать абсолютные остатки.
+   */
+  docTimeMs: number | null;
+  positions: Array<{
+    productId: string;
+    quantity: number;
+    /**
+     * Остаток ДО операции по данным Эвотора (initial_quantity REST-документа;
+     * живой прогон 04.08: присутствует в 84/84 позициях). Вебхук ver.2 его не
+     * шлёт → null. Основа «чека-как-сверки»: initial ± qty = авторитетный
+     * остаток на момент документа.
+     */
+    initialQuantity: number | null;
+  }>;
 }
 
 /** Товар из push-а номенклатуры, приведённый к внутреннему виду. */
@@ -70,6 +87,20 @@ const num = (v: unknown): number | null => {
 export function toKopecks(price: unknown): number | null {
   const n = num(price);
   return n === null ? null : Math.round(n * 100);
+}
+
+/**
+ * Время документа → мс epoch; null для мусора/отсутствия. Эвотор шлёт ISO
+ * с «Z» (dateTime вебхука) и с «+0000» БЕЗ двоеточия (close_date REST) —
+ * второй вариант не строгий ISO 8601, парсеры вправе его не понять,
+ * поэтому нормализуем «+0000» → «+00:00» перед Date.parse.
+ */
+function whenMs(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
+  const s = str(v);
+  if (!s) return null;
+  const ms = Date.parse(s.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  return Number.isNaN(ms) ? null : ms;
 }
 
 /** Нормализация имени для match_key: нижний регистр, ё→е, схлопнутые пробелы. */
@@ -168,6 +199,19 @@ export function parseReceipt(body: unknown): ParsedReceipt | null {
     uuidStr(inner.storeId) ??
     null;
 
+  // Время документа: close_date REST-документа или dateTime «Чеков ver.2».
+  // Только собственное время документа — см. ParsedReceipt.docTimeMs.
+  const docTimeMs =
+    whenMs(data.close_date) ??
+    whenMs(d.close_date) ??
+    whenMs(inner.close_date) ??
+    whenMs(data.closeDate) ??
+    whenMs(d.closeDate) ??
+    whenMs(data.dateTime) ??
+    whenMs(d.dateTime) ??
+    whenMs(inner.dateTime) ??
+    null;
+
   const rawPositions = [
     d.positions,
     inner.positions,
@@ -194,10 +238,15 @@ export function parseReceipt(body: unknown): ParsedReceipt | null {
     // Раньше фильтр quantity>0 отбрасывал возвраты → остаток не восстанавливался.
     // Ноль (нет движения) и мусор (num→null) по-прежнему отбрасываем.
     if (productId && quantity !== null && quantity !== 0)
-      positions.push({ productId, quantity: Math.abs(quantity) });
+      positions.push({
+        productId,
+        quantity: Math.abs(quantity),
+        // Остаток ДО операции (REST). Ноль — валидное значение, не «нет данных».
+        initialQuantity: num(p.initial_quantity ?? p.initialQuantity),
+      });
   }
 
-  return { uuid, type, storeId, positions };
+  return { uuid, type, storeId, docTimeMs, positions };
 }
 
 /** Разбор одного товара из push-а номенклатуры. null — нет uuid/имени. */

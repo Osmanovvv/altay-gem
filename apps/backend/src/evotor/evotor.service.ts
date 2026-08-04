@@ -27,6 +27,7 @@ import {
   parseReceipt,
   pushAuthorized,
 } from './parse';
+import { planStockWrite } from './receipt-stock';
 
 /** Результат claim-а события: наше / дубликат / занято параллельной доставкой. */
 type Claim =
@@ -310,13 +311,32 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
       // перехваченный после 5 минут claim откатывает «зависшего» целиком.
       await this.db.transaction(async (tx) => {
         for (const pos of positions) {
-          const delta = sign * pos.quantity;
+          // Чек-как-сверка: REST-документ несёт initial_quantity → пишем
+          // АБСОЛЮТ (initial ± qty) под охраной stock_asof; вебхук ver.2 —
+          // дельту. Дельта старее применённого абсолюта пропускается: её
+          // эффект уже внутри снимка. stock_asof двигают ТОЛЬКО абсолюты —
+          // дельты коммутативны и штамповать порядок не должны (иначе два
+          // перепутанных местами вебхука потеряли бы одну продажу).
+          const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs);
+          const tsIso =
+            doc.docTimeMs !== null ? new Date(doc.docTimeMs).toISOString() : null;
+          const fresh = tsIso
+            ? sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${tsIso}::timestamptz)`
+            : sql`true`;
           const updated = await tx
             .update(evotorProducts)
-            .set({
-              quantity: sql`${evotorProducts.quantity} + ${String(delta)}`,
-              updatedAt: sql`now()`,
-            })
+            .set(
+              w.kind === 'absolute'
+                ? {
+                    quantity: sql`case when ${fresh} then ${String(w.after)}::numeric else ${evotorProducts.quantity} end`,
+                    stockAsof: sql`case when ${fresh} then ${tsIso}::timestamptz else ${evotorProducts.stockAsof} end`,
+                    updatedAt: sql`now()`,
+                  }
+                : {
+                    quantity: sql`case when ${fresh} then ${evotorProducts.quantity} + ${String(w.delta)} else ${evotorProducts.quantity} end`,
+                    updatedAt: sql`now()`,
+                  },
+            )
             .where(
               and(
                 eq(evotorProducts.storeId, doc.storeId!),
@@ -331,7 +351,13 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
             storeId: doc.storeId,
             evotorUuid: pos.productId,
             status: updated.length ? 'ok' : 'error',
-            payload: { doc: doc.uuid, type: doc.type, delta },
+            payload: {
+              doc: doc.uuid,
+              type: doc.type,
+              ...(w.kind === 'absolute'
+                ? { abs: w.after, initial: pos.initialQuantity }
+                : { delta: w.delta }),
+            },
             error: updated.length
               ? null
               : 'товар не найден в реплике — добёрет ночная сверка',
@@ -560,6 +586,7 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     let seen = 0;
+    let absWrote = false; // был ли применён хоть один абсолютный остаток
     const skipped: string[] = []; // магазины, где наше приложение не установлено
     const failed: string[] = []; //  настоящие ошибки чтения (инфра/токен)
     for (const store of stores) {
@@ -569,13 +596,38 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
           sinceMs,
           this.pollTypes,
         );
-        for (const doc of docs) {
+        // По времени документа: абсолюты сходятся к САМОМУ СВЕЖЕМУ снимку
+        // независимо от порядка, но восходящий порядок не оставляет
+        // промежуточных откатов между документами одного прогона.
+        const enriched = docs
+          .map((doc) => {
+            const body = { ...doc, storeUuid: store.id };
+            return { body, parsed: parseReceipt(body) };
+          })
+          .sort(
+            (a, b) =>
+              (a.parsed?.docTimeMs ?? 0) - (b.parsed?.docTimeMs ?? 0),
+          );
+        for (const { body, parsed } of enriched) {
           seen += 1;
           // storeUuid подставляем сами: элемент GET /documents его не содержит.
-          await this.handleReceipt({ ...doc, storeUuid: store.id }).catch(
-            (e: Error) =>
-              this.log.warn(`Поллинг: документ не применён: ${e.message}`),
+          await this.handleReceipt(body).catch((e: Error) =>
+            this.log.warn(`Поллинг: документ не применён: ${e.message}`),
           );
+          // Чек-как-сверка: вебхук применил этот документ ДЕЛЬТОЙ (ver.2 без
+          // initial_quantity) и дедуп не пустит его повторно — абсолютный
+          // остаток доносим отдельным проходом со своим дедупом (docq:).
+          if (parsed) {
+            const wrote = await this.applyDocumentStock(parsed).catch(
+              (e: Error) => {
+                this.log.warn(
+                  `Поллинг: абсолют остатка не применён (${parsed.uuid}): ${e.message}`,
+                );
+                return false;
+              },
+            );
+            absWrote = absWrote || wrote;
+          }
         }
       } catch (err) {
         const msg = (err as Error).message;
@@ -609,10 +661,111 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
           ? 'приложение не установлено ни на одном магазине'
           : undefined,
     );
+    if (absWrote) await this.cache.invalidatePrefix('catalog:');
     if (seen)
       this.log.log(
         `Поллинг документов: просмотрено ${seen} за ${this.pollLookbackH}ч`,
       );
+  }
+
+  /**
+   * Чек-как-сверка (второй проход поллинга): применить АБСОЛЮТНЫЙ остаток
+   * из initial_quantity позиций REST-документа. Свой дедуп (docq:{uuid}) —
+   * документ, уже применённый вебхуком как дельта (doc:{uuid}), сюда всё
+   * равно попадает один раз. Запись охраняется stock_asof: снимок старее
+   * уже применённого не перезаписывает (перепутанный порядок безопасен),
+   * равный — идемпотентен. Возвращает, писал ли хоть одну строку.
+   */
+  private async applyDocumentStock(doc: {
+    uuid: string;
+    type: string;
+    storeId: string | null;
+    docTimeMs: number | null;
+    positions: Array<{
+      productId: string;
+      quantity: number;
+      initialQuantity: number | null;
+    }>;
+  }): Promise<boolean> {
+    const sign = documentStockSign(doc.type);
+    const abs = doc.positions.filter((p) => p.initialQuantity !== null);
+    if (sign === 0 || !doc.storeId || doc.docTimeMs === null || !abs.length)
+      return false;
+
+    const eventId = `docq:${doc.uuid}`;
+    const claim = await this.claimEvent(eventId, `stock:${doc.type}`, {
+      doc: doc.uuid,
+      positions: abs.length,
+    });
+    // busy: параллельный прогон уже применяет; следующий поллинг доберёт.
+    if (claim.kind !== 'claimed') return false;
+
+    const tsIso = new Date(doc.docTimeMs).toISOString();
+    const positions = [...abs].sort((a, b) =>
+      a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0,
+    );
+    let applied = 0;
+    let missing = 0;
+    try {
+      await this.db.transaction(async (tx) => {
+        for (const pos of positions) {
+          const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs);
+          if (w.kind !== 'absolute') continue; // недостижимо после фильтра
+          const fresh = sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${tsIso}::timestamptz)`;
+          const updated = await tx
+            .update(evotorProducts)
+            .set({
+              quantity: sql`case when ${fresh} then ${String(w.after)}::numeric else ${evotorProducts.quantity} end`,
+              stockAsof: sql`case when ${fresh} then ${tsIso}::timestamptz else ${evotorProducts.stockAsof} end`,
+              updatedAt: sql`now()`,
+            })
+            .where(
+              and(
+                eq(evotorProducts.storeId, doc.storeId!),
+                eq(evotorProducts.evotorUuid, pos.productId),
+              ),
+            )
+            .returning({ uuid: evotorProducts.evotorUuid });
+          if (updated.length) applied += 1;
+          else missing += 1; // товара нет в реплике — добёрет файл выгрузки
+        }
+        const done = await tx
+          .update(webhookEvents)
+          .set({ status: 'processed', error: null, processedAt: sql`now()` })
+          .where(
+            and(
+              eq(webhookEvents.source, 'evotor'),
+              eq(webhookEvents.eventId, eventId),
+              sql`${webhookEvents.status} = 'received'`,
+              sql`${webhookEvents.receivedAt} = ${claim.claimedAt}::timestamptz`,
+            ),
+          )
+          .returning({ id: webhookEvents.id });
+        if (done.length === 0)
+          throw new Error('claim перехвачен параллельным прогоном — откат');
+      });
+      // Журнал: одна строка на документ (не на позицию — не раздуваем sync_log).
+      await this.db
+        .insert(syncLog)
+        .values({
+          direction: 'import',
+          entity: 'stock_abs',
+          storeId: doc.storeId,
+          status: missing ? 'error' : 'ok',
+          payload: { doc: doc.uuid, type: doc.type, applied, missing },
+          error: missing ? `нет в реплике: ${missing} позиций` : null,
+        })
+        .catch(() => undefined); // журнал не должен ронять применение
+      return applied > 0;
+    } catch (err) {
+      await this.markEvent(
+        eventId,
+        'failed',
+        (err as Error).message,
+        claim.claimedAt,
+      ).catch(() => undefined);
+      throw err;
+    }
   }
 
   /** Журнал прогона поллинга (entity='poll') — источник мониторинга (ТЗ п.9). */
