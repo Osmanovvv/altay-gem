@@ -35,28 +35,6 @@ export function absoluteAllowed(type: string): boolean {
   return ABSOLUTE_TYPES.has(type);
 }
 
-/**
- * Абсолют возможен, только когда есть И initial_quantity, И время документа,
- * И проверенный тип: абсолют без порядка опасен — снимок неизвестной давности
- * мог бы откатить более свежие движения. Иначе — дельта со знаком типа
- * документа (как раньше).
- */
-export function planStockWrite(
-  pos: { quantity: number; initialQuantity: number | null },
-  sign: 1 | -1,
-  docTimeMs: number | null,
-  allowAbsolute: boolean,
-): StockWrite {
-  if (allowAbsolute && pos.initialQuantity !== null && docTimeMs !== null) {
-    return {
-      kind: 'absolute',
-      after: pos.initialQuantity + sign * pos.quantity,
-      asofMs: docTimeMs,
-    };
-  }
-  return { kind: 'delta', delta: sign * pos.quantity };
-}
-
 /** Позиция документа в терминах остатка. */
 interface DocPosition {
   productId: string;

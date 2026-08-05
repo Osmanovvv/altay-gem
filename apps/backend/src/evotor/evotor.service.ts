@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { CacheService } from '../cache/cache.service';
 import { DB, type Database } from '../db/database.module';
@@ -507,6 +507,10 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
                 }),
                 ...(p.quantity !== null && {
                   quantity: sql`case when ${evotorProducts.updatedAt} > ${freshTs}::timestamptz then ${evotorProducts.quantity} else ${String(p.quantity)}::numeric end`,
+                  // Снимок остатка из push-а — тоже «учтённое движение»:
+                  // без метки абсолют поллинга по документу СТАРШЕ push-а
+                  // прошёл бы охрану и стёр приехавшую приёмку.
+                  stockAsof: sql`case when ${evotorProducts.updatedAt} > ${freshTs}::timestamptz then ${evotorProducts.stockAsof} else greatest(coalesce(${evotorProducts.stockAsof}, ${freshTs}::timestamptz), ${freshTs}::timestamptz) end`,
                 }),
                 ...(p.measure !== null && { measure: p.measure }),
                 ...(p.allowToSell !== null && { allowToSell: p.allowToSell }),
@@ -741,16 +745,47 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
     const tsIso = new Date(doc.docTimeMs).toISOString();
     let applied = 0;
     let missing = 0;
+    let stale = 0;
     try {
       await this.db.transaction(async (tx) => {
-        for (const { productId, write: w } of writes) {
+        // Сначала БЛОКИРУЕМ строки товаров документа в каноническом порядке и
+        // смотрим их метки. Решение «применять или нет» принимаем по документу
+        // ЦЕЛИКОМ: частично применённый абсолют нельзя ни закрыть (потеряли бы
+        // непринятые товары), ни оставить открытым (дельта вебхука легла бы
+        // поверх принятых — двойное списание). Всё или ничего.
+        const ids = writes.map((w) => w.productId);
+        const locked = await tx
+          .select({
+            uuid: evotorProducts.evotorUuid,
+            stockAsof: evotorProducts.stockAsof,
+          })
+          .from(evotorProducts)
+          .where(
+            and(
+              eq(evotorProducts.storeId, doc.storeId!),
+              inArray(evotorProducts.evotorUuid, ids),
+            ),
+          )
+          .orderBy(evotorProducts.evotorUuid)
+          .for('update');
+
+        const known = new Map(locked.map((r) => [r.uuid, r.stockAsof]));
+        missing = ids.length - known.size; // нет в реплике — добёрет файл выгрузки
+        stale = [...known.values()].filter(
+          (a) => a !== null && a.getTime() > doc.docTimeMs!,
+        ).length;
+        // По товару уже учтено что-то более свежее: наш снимок этого не
+        // содержит, применять нельзя. doc: НЕ закрываем — документ остаётся
+        // вебхуку. Свой docq: при этом финализируем: устаревание необратимо
+        // (метка только растёт), повторные попытки бессмысленны.
+        for (const { productId, write: w } of stale > 0 ? [] : writes) {
           if (w.kind !== 'absolute') continue; // недостижимо после фильтра
-          const fresh = sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${tsIso}::timestamptz)`;
-          const updated = await tx
+          if (!known.has(productId)) continue; // строки нет — писать нечего
+          await tx
             .update(evotorProducts)
             .set({
-              quantity: sql`case when ${fresh} then ${String(w.after)}::numeric else ${evotorProducts.quantity} end`,
-              stockAsof: sql`case when ${fresh} then ${tsIso}::timestamptz else ${evotorProducts.stockAsof} end`,
+              quantity: sql`${String(w.after)}::numeric`,
+              stockAsof: sql`${tsIso}::timestamptz`,
               updatedAt: sql`now()`,
             })
             .where(
@@ -758,27 +793,30 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
                 eq(evotorProducts.storeId, doc.storeId!),
                 eq(evotorProducts.evotorUuid, productId),
               ),
-            )
-            .returning({ uuid: evotorProducts.evotorUuid });
-          if (updated.length) applied += 1;
-          else missing += 1; // товара нет в реплике — добёрет файл выгрузки
+            );
+          applied += 1;
         }
         // Закрываем дедуп ВЕБХУКА этого же документа: его дельта поверх
         // нашего абсолюта была бы двойным списанием (см. док-комментарий).
-        await tx
-          .insert(webhookEvents)
-          .values({
-            source: 'evotor',
-            eventId: `doc:${doc.uuid}`,
-            type: doc.type,
-            status: 'processed',
-            payload: { doc: doc.uuid, appliedBy: 'stock-absolute' },
-            processedAt: sql`now()`,
-          })
-          .onConflictDoUpdate({
-            target: [webhookEvents.source, webhookEvents.eventId],
-            set: { status: 'processed', error: null, processedAt: sql`now()` },
-          });
+        // Только когда ни один товар не отброшен по свежести. Товар, которого
+        // нет в реплике, закрытию не мешает: дельта вебхука по нему тоже
+        // ничего бы не записала.
+        if (stale === 0) {
+          await tx
+            .insert(webhookEvents)
+            .values({
+              source: 'evotor',
+              eventId: `doc:${doc.uuid}`,
+              type: doc.type,
+              status: 'processed',
+              payload: { doc: doc.uuid, appliedBy: 'stock-absolute' },
+              processedAt: sql`now()`,
+            })
+            .onConflictDoUpdate({
+              target: [webhookEvents.source, webhookEvents.eventId],
+              set: { status: 'processed', error: null, processedAt: sql`now()` },
+            });
+        }
         const done = await tx
           .update(webhookEvents)
           .set({ status: 'processed', error: null, processedAt: sql`now()` })
@@ -802,8 +840,14 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
           entity: 'stock_abs',
           storeId: doc.storeId,
           status: missing ? 'error' : 'ok',
-          payload: { doc: doc.uuid, type: doc.type, applied, missing },
-          error: missing ? `нет в реплике: ${missing} позиций` : null,
+          payload: {
+            doc: doc.uuid,
+            type: doc.type,
+            applied,
+            missing,
+            ...(stale && { staleSkipped: stale }),
+          },
+          error: missing ? `нет в реплике: ${missing} товаров` : null,
         })
         .catch(() => undefined); // журнал не должен ронять применение
       return applied > 0;
