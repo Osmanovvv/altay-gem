@@ -312,11 +312,14 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
       await this.db.transaction(async (tx) => {
         for (const pos of positions) {
           // Чек-как-сверка: REST-документ несёт initial_quantity → пишем
-          // АБСОЛЮТ (initial ± qty) под охраной stock_asof; вебхук ver.2 —
-          // дельту. Дельта старее применённого абсолюта пропускается: её
-          // эффект уже внутри снимка. stock_asof двигают ТОЛЬКО абсолюты —
-          // дельты коммутативны и штамповать порядок не должны (иначе два
-          // перепутанных местами вебхука потеряли бы одну продажу).
+          // АБСОЛЮТ (initial ± qty); вебхук ver.2 — дельту, как раньше.
+          //
+          // stock_asof = время последнего УЧТЁННОГО движения (или снимка).
+          // Абсолют — это снимок, поэтому применяется, только если он не
+          // старее уже учтённого (иначе стёр бы более свежие движения).
+          // Дельта применяется ВСЕГДА и лишь двигает метку вперёд: дельты
+          // коммутативны, и два перепутанных местами вебхука обязаны сложиться
+          // оба (условная дельта потеряла бы более старую продажу навсегда).
           const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs);
           const tsIso =
             doc.docTimeMs !== null ? new Date(doc.docTimeMs).toISOString() : null;
@@ -333,7 +336,13 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
                     updatedAt: sql`now()`,
                   }
                 : {
-                    quantity: sql`case when ${fresh} then ${evotorProducts.quantity} + ${String(w.delta)} else ${evotorProducts.quantity} end`,
+                    quantity: sql`${evotorProducts.quantity} + ${String(w.delta)}`,
+                    // Метка вперёд, но не назад: greatest от текущей и времени
+                    // документа. Иначе следующий абсолют того же окна счёл бы
+                    // себя «свежее» и затёр эту дельту.
+                    ...(tsIso && {
+                      stockAsof: sql`greatest(coalesce(${evotorProducts.stockAsof}, ${tsIso}::timestamptz), ${tsIso}::timestamptz)`,
+                    }),
                     updatedAt: sql`now()`,
                   },
             )
