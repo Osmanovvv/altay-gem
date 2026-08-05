@@ -27,7 +27,7 @@ import {
   parseReceipt,
   pushAuthorized,
 } from './parse';
-import { planStockWrite } from './receipt-stock';
+import { absoluteAllowed, planStockWrite } from './receipt-stock';
 
 /** Результат claim-а события: наше / дубликат / занято параллельной доставкой. */
 type Claim =
@@ -320,7 +320,12 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
           // Дельта применяется ВСЕГДА и лишь двигает метку вперёд: дельты
           // коммутативны, и два перепутанных местами вебхука обязаны сложиться
           // оба (условная дельта потеряла бы более старую продажу навсегда).
-          const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs);
+          const w = planStockWrite(
+            pos,
+            sign as 1 | -1,
+            doc.docTimeMs,
+            absoluteAllowed(doc.type),
+          );
           const tsIso =
             doc.docTimeMs !== null ? new Date(doc.docTimeMs).toISOString() : null;
           const fresh = tsIso
@@ -698,7 +703,13 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
   }): Promise<boolean> {
     const sign = documentStockSign(doc.type);
     const abs = doc.positions.filter((p) => p.initialQuantity !== null);
-    if (sign === 0 || !doc.storeId || doc.docTimeMs === null || !abs.length)
+    if (
+      sign === 0 ||
+      !absoluteAllowed(doc.type) ||
+      !doc.storeId ||
+      doc.docTimeMs === null ||
+      !abs.length
+    )
       return false;
 
     const eventId = `docq:${doc.uuid}`;
@@ -718,7 +729,7 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.db.transaction(async (tx) => {
         for (const pos of positions) {
-          const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs);
+          const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs, true);
           if (w.kind !== 'absolute') continue; // недостижимо после фильтра
           const fresh = sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${tsIso}::timestamptz)`;
           const updated = await tx

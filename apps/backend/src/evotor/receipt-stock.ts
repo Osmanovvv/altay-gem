@@ -21,16 +21,33 @@ export type StockWrite =
   | { kind: 'delta'; delta: number };
 
 /**
- * Абсолют возможен, только когда есть И initial_quantity, И время документа:
- * абсолют без порядка опасен — снимок неизвестной давности мог бы откатить
- * более свежие движения. Иначе — дельта со знаком типа документа (как раньше).
+ * Типы документов, для которых трактовка initial_quantity подтверждена на
+ * ЖИВЫХ данных прода (04.08.2026): SELL — 287/287 позиций за 72 ч, PAYBACK —
+ * 24/24 за 60 дней. Прочих движений у клиента на кассе не бывает вовсе
+ * (ACCEPT/WRITE_OFF/RETURN/INVENTORY/REVALUATION за 60 дней — ноль: всё
+ * делается в товароучётке). Непроверенный тип в абсолютную запись остатка
+ * не пускаем — он остаётся на прежней дельте.
+ */
+const ABSOLUTE_TYPES = new Set(['SELL', 'PAYBACK']);
+
+/** Можно ли для этого типа документа писать АБСОЛЮТНЫЙ остаток. */
+export function absoluteAllowed(type: string): boolean {
+  return ABSOLUTE_TYPES.has(type);
+}
+
+/**
+ * Абсолют возможен, только когда есть И initial_quantity, И время документа,
+ * И проверенный тип: абсолют без порядка опасен — снимок неизвестной давности
+ * мог бы откатить более свежие движения. Иначе — дельта со знаком типа
+ * документа (как раньше).
  */
 export function planStockWrite(
   pos: { quantity: number; initialQuantity: number | null },
   sign: 1 | -1,
   docTimeMs: number | null,
+  allowAbsolute: boolean,
 ): StockWrite {
-  if (pos.initialQuantity !== null && docTimeMs !== null) {
+  if (allowAbsolute && pos.initialQuantity !== null && docTimeMs !== null) {
     return {
       kind: 'absolute',
       after: pos.initialQuantity + sign * pos.quantity,
