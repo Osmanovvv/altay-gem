@@ -709,28 +709,36 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
     }>;
   }): Promise<boolean> {
     const sign = documentStockSign(doc.type);
-    const abs = doc.positions.filter((p) => p.initialQuantity !== null);
     if (
       sign === 0 ||
       !absoluteAllowed(doc.type) ||
       !doc.storeId ||
-      doc.docTimeMs === null ||
-      !abs.length
+      doc.docTimeMs === null
     )
       return false;
+
+    // План строим по ВСЕМ позициям документа, а не только по тем, где есть
+    // initial_quantity: у товара с дублями часть позиций может прийти без
+    // него, и тогда абсолют, посчитанный по остатку позиций, был бы неполным.
+    // planDocumentWrites сам отдаёт такой товар дельтой — её здесь пропускаем
+    // (дельту применяет handleReceipt).
+    const writes = planDocumentWrites(
+      doc.positions,
+      sign as 1 | -1,
+      doc.docTimeMs,
+      true,
+    ).filter((w) => w.write.kind === 'absolute');
+    if (!writes.length) return false;
 
     const eventId = `docq:${doc.uuid}`;
     const claim = await this.claimEvent(eventId, `stock:${doc.type}`, {
       doc: doc.uuid,
-      positions: abs.length,
+      products: writes.length,
     });
     // busy: параллельный прогон уже применяет; следующий поллинг доберёт.
     if (claim.kind !== 'claimed') return false;
 
     const tsIso = new Date(doc.docTimeMs).toISOString();
-    // Одна запись на товар: дубли позиций одного товара сведены, порядок
-    // канонический (см. planDocumentWrites) — против межстрочных дедлоков.
-    const writes = planDocumentWrites(abs, sign as 1 | -1, doc.docTimeMs, true);
     let applied = 0;
     let missing = 0;
     try {
