@@ -27,7 +27,7 @@ import {
   parseReceipt,
   pushAuthorized,
 } from './parse';
-import { absoluteAllowed, planStockWrite } from './receipt-stock';
+import { absoluteAllowed, planDocumentWrites } from './receipt-stock';
 
 /** Результат claim-а события: наше / дубликат / занято параллельной доставкой. */
 type Claim =
@@ -298,10 +298,14 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // Канонический порядок захвата блокировок строк — два одновременных чека
-    // с общими товарами не взаимоблокируются.
-    const positions = [...doc.positions].sort((a, b) =>
-      a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0,
+    // Одна запись на ТОВАР (дубли позиций одного товара сведены), порядок —
+    // по productId: канонический порядок захвата блокировок строк, два
+    // одновременных чека с общими товарами не взаимоблокируются.
+    const writes = planDocumentWrites(
+      doc.positions,
+      sign as 1 | -1,
+      doc.docTimeMs,
+      absoluteAllowed(doc.type),
     );
 
     try {
@@ -309,8 +313,10 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
       // либо откат целиком. Финализация fenced: processed ставит только
       // владелец claim-а (status='received' и received_at не изменился) —
       // перехваченный после 5 минут claim откатывает «зависшего» целиком.
+      const tsIso =
+        doc.docTimeMs !== null ? new Date(doc.docTimeMs).toISOString() : null;
       await this.db.transaction(async (tx) => {
-        for (const pos of positions) {
+        for (const { productId, write: w } of writes) {
           // Чек-как-сверка: REST-документ несёт initial_quantity → пишем
           // АБСОЛЮТ (initial ± qty); вебхук ver.2 — дельту, как раньше.
           //
@@ -320,14 +326,6 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
           // Дельта применяется ВСЕГДА и лишь двигает метку вперёд: дельты
           // коммутативны, и два перепутанных местами вебхука обязаны сложиться
           // оба (условная дельта потеряла бы более старую продажу навсегда).
-          const w = planStockWrite(
-            pos,
-            sign as 1 | -1,
-            doc.docTimeMs,
-            absoluteAllowed(doc.type),
-          );
-          const tsIso =
-            doc.docTimeMs !== null ? new Date(doc.docTimeMs).toISOString() : null;
           const fresh = tsIso
             ? sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${tsIso}::timestamptz)`
             : sql`true`;
@@ -354,7 +352,7 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
             .where(
               and(
                 eq(evotorProducts.storeId, doc.storeId!),
-                eq(evotorProducts.evotorUuid, pos.productId),
+                eq(evotorProducts.evotorUuid, productId),
               ),
             )
             .returning({ uuid: evotorProducts.evotorUuid });
@@ -363,13 +361,13 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
             direction: 'import',
             entity: 'receipt',
             storeId: doc.storeId,
-            evotorUuid: pos.productId,
+            evotorUuid: productId,
             status: updated.length ? 'ok' : 'error',
             payload: {
               doc: doc.uuid,
               type: doc.type,
               ...(w.kind === 'absolute'
-                ? { abs: w.after, initial: pos.initialQuantity }
+                ? { abs: w.after }
                 : { delta: w.delta }),
             },
             error: updated.length
@@ -395,7 +393,7 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
       });
       await this.cache.invalidatePrefix('catalog:');
       this.log.log(
-        `Чек ${doc.type} ${doc.uuid}: обновлено позиций — ${positions.length}`,
+        `Чек ${doc.type} ${doc.uuid}: обновлено товаров — ${writes.length}`,
       );
     } catch (err) {
       this.log.error(`Чек ${doc.uuid}: ${(err as Error).message}`);
@@ -689,6 +687,15 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
    * равно попадает один раз. Запись охраняется stock_asof: снимок старее
    * уже применённого не перезаписывает (перепутанный порядок безопасен),
    * равный — идемпотентен. Возвращает, писал ли хоть одну строку.
+   *
+   * ВАЖНО: в той же транзакции закрываем и doc:{uuid} как 'processed'.
+   * Абсолют УЖЕ содержит эффект этого документа, поэтому дельта того же
+   * документа поверх него — двойное списание. Без этого сценарий реален:
+   * вебхук осиротил claim в 'received' (обрыв БД), поллинг не смог его
+   * перехватить (моложе 5 минут) и записал абсолют, а ретрай вебхука через
+   * 5 минут оживил claim и вычел количество ещё раз. Перехват claim-а
+   * безопасен: живой вебхук не сойдётся на fenced-финализации (ждёт наш
+   * COMMIT, затем видит 'processed') и откатит свою дельту целиком.
    */
   private async applyDocumentStock(doc: {
     uuid: string;
@@ -721,15 +728,14 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
     if (claim.kind !== 'claimed') return false;
 
     const tsIso = new Date(doc.docTimeMs).toISOString();
-    const positions = [...abs].sort((a, b) =>
-      a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0,
-    );
+    // Одна запись на товар: дубли позиций одного товара сведены, порядок
+    // канонический (см. planDocumentWrites) — против межстрочных дедлоков.
+    const writes = planDocumentWrites(abs, sign as 1 | -1, doc.docTimeMs, true);
     let applied = 0;
     let missing = 0;
     try {
       await this.db.transaction(async (tx) => {
-        for (const pos of positions) {
-          const w = planStockWrite(pos, sign as 1 | -1, doc.docTimeMs, true);
+        for (const { productId, write: w } of writes) {
           if (w.kind !== 'absolute') continue; // недостижимо после фильтра
           const fresh = sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${tsIso}::timestamptz)`;
           const updated = await tx
@@ -742,13 +748,29 @@ export class EvotorService implements OnModuleInit, OnModuleDestroy {
             .where(
               and(
                 eq(evotorProducts.storeId, doc.storeId!),
-                eq(evotorProducts.evotorUuid, pos.productId),
+                eq(evotorProducts.evotorUuid, productId),
               ),
             )
             .returning({ uuid: evotorProducts.evotorUuid });
           if (updated.length) applied += 1;
           else missing += 1; // товара нет в реплике — добёрет файл выгрузки
         }
+        // Закрываем дедуп ВЕБХУКА этого же документа: его дельта поверх
+        // нашего абсолюта была бы двойным списанием (см. док-комментарий).
+        await tx
+          .insert(webhookEvents)
+          .values({
+            source: 'evotor',
+            eventId: `doc:${doc.uuid}`,
+            type: doc.type,
+            status: 'processed',
+            payload: { doc: doc.uuid, appliedBy: 'stock-absolute' },
+            processedAt: sql`now()`,
+          })
+          .onConflictDoUpdate({
+            target: [webhookEvents.source, webhookEvents.eventId],
+            set: { status: 'processed', error: null, processedAt: sql`now()` },
+          });
         const done = await tx
           .update(webhookEvents)
           .set({ status: 'processed', error: null, processedAt: sql`now()` })

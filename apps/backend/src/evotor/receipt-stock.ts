@@ -56,3 +56,68 @@ export function planStockWrite(
   }
   return { kind: 'delta', delta: sign * pos.quantity };
 }
+
+/** Позиция документа в терминах остатка. */
+interface DocPosition {
+  productId: string;
+  quantity: number;
+  initialQuantity: number | null;
+}
+
+/**
+ * План записи остатка по ВСЕМУ документу: одна запись на товар, порядок —
+ * по productId (канонический порядок захвата блокировок, см. handleReceipt).
+ *
+ * Почему нельзя писать позиции поодиночке. Один товар встречается в чеке
+ * несколько раз (маркировка требует отдельной позиции на единицу; весовой
+ * товар взвешивают дважды) — на проде это 5 документов из 142 за 72 часа.
+ * initial_quantity при этом ПОЗИЦИОННЫЙ: живой чек даёт 51, 50, 49, 48, 47
+ * для пяти единиц. Последовательная перезапись даёт верный итог только пока
+ * позиции идут в исходном порядке; порядок Эвотором не гарантирован.
+ *
+ * Считаем от КРАЙНЕЙ позиции: при списании (sign −1) остаток убывает, значит
+ * до документа он был максимальным из initial; при возврате — минимальным.
+ * Дальше прибавляем сумму количеств со знаком. Результат не зависит от
+ * порядка позиций. Если хоть у одной позиции товара initial нет — весь товар
+ * уходит на дельту (смешивать снимок и дельту в одном документе нельзя).
+ */
+export function planDocumentWrites(
+  positions: DocPosition[],
+  sign: 1 | -1,
+  docTimeMs: number | null,
+  allowAbsolute: boolean,
+): Array<{ productId: string; write: StockWrite }> {
+  const byProduct = new Map<
+    string,
+    { qty: number; initials: Array<number | null> }
+  >();
+  for (const p of positions) {
+    const g = byProduct.get(p.productId) ?? { qty: 0, initials: [] };
+    g.qty += p.quantity;
+    g.initials.push(p.initialQuantity);
+    byProduct.set(p.productId, g);
+  }
+
+  return [...byProduct.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([productId, g]) => {
+      const known = g.initials.filter((v): v is number => v !== null);
+      const complete = known.length === g.initials.length && known.length > 0;
+      if (!allowAbsolute || !complete || docTimeMs === null) {
+        return {
+          productId,
+          write: { kind: 'delta', delta: sign * g.qty } as StockWrite,
+        };
+      }
+      // Остаток ДО документа = крайний initial по направлению движения.
+      const base = sign === -1 ? Math.max(...known) : Math.min(...known);
+      return {
+        productId,
+        write: {
+          kind: 'absolute',
+          after: base + sign * g.qty,
+          asofMs: docTimeMs,
+        } as StockWrite,
+      };
+    });
+}

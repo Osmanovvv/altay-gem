@@ -144,24 +144,21 @@ export async function reconcileStore(
     .values({ id: storeId, name: `Эвотор ${storeId}` })
     .onConflictDoNothing({ target: evotorStores.id });
 
-  // Снимок «до»: цена/остаток АКТИВНЫХ товаров по uuid — для сравнения и как
-  // знаменатель страховки архивации. Архивные в выгрузке отсутствуют законно,
-  // поэтому в знаменатель порога полноты их включать нельзя (иначе со временем
-  // архивация отключилась бы навсегда).
+  // Снимок «до»: цена/остаток по uuid — для сравнения и охраны stock_asof.
+  // Берём и АРХИВНЫЕ строки: чеки обновляют остаток независимо от архивности,
+  // и вернувшийся в выгрузку архивный товар иначе пришёл бы сюда как
+  // «неизвестный» (prev=undefined) — охрана отключилась бы, и файл затёр бы
+  // более свежий остаток из чека.
   const before = await db
     .select({
       evotorUuid: evotorProducts.evotorUuid,
       priceKopecks: evotorProducts.priceKopecks,
       quantity: evotorProducts.quantity,
       stockAsof: evotorProducts.stockAsof,
+      isArchived: evotorProducts.isArchived,
     })
     .from(evotorProducts)
-    .where(
-      and(
-        eq(evotorProducts.storeId, storeId),
-        eq(evotorProducts.isArchived, false),
-      ),
-    );
+    .where(eq(evotorProducts.storeId, storeId));
   const current = new Map<string, ReplicaSnapshot>(
     before.map((r) => [
       r.evotorUuid,
@@ -172,7 +169,10 @@ export async function reconcileStore(
       },
     ]),
   );
-  const replicaBefore = before.length;
+  // Знаменатель страховки архивации — только АКТИВНЫЕ: архивные в выгрузке
+  // отсутствуют законно, и в порог полноты их включать нельзя (иначе со
+  // временем архивация отключилась бы навсегда).
+  const replicaBefore = before.filter((r) => !r.isArchived).length;
 
   let upserted = 0;
   let failed = 0;
