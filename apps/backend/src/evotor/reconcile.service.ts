@@ -7,13 +7,17 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { open, readdir, rename, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import * as XLSX from 'xlsx';
 import { DB, type Database } from '../db/database.module';
 import { syncLog, webhookEvents } from '../db/schema';
 import { TelegramService } from '../notifications/telegram.service';
-import { readSnapshotTime, resolveExportAt } from './export-snapshot';
+import {
+  readMaxUpdatedAt,
+  readSnapshotTime,
+  resolveExportAt,
+} from './export-snapshot';
 import { evaluateHealth } from './monitor';
 import { UUID_FORM } from './parse';
 import { reconcileFileName } from './reconcile-upload';
@@ -64,7 +68,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     // Возраст САМОГО ФАЙЛА выгрузки (не путать с reconcileMaxAgeHours — тот
     // про давность последнего ПРОГОНА сверки). 0 — проверку не делать.
     this.maxFileAgeHours =
-      config.get<number>('EVOTOR_RECONCILE_MAX_FILE_AGE_HOURS') ?? 26;
+      config.get<number>('EVOTOR_RECONCILE_MAX_FILE_AGE_HOURS') ?? 48;
     this.failedEventMinutes =
       config.get<number>('EVOTOR_FAILED_EVENT_MINUTES') ?? 15;
     // Включён ли поллинг документов — для мониторинга его здоровья (ТЗ п.9).
@@ -144,22 +148,51 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
       handled += 1;
       try {
         const path = join(this.dir, file);
-        const [meta, buf] = await Promise.all([stat(path), readFile(path)]);
+        // Один дескриптор на stat+чтение: между двумя обращениями к пути
+        // загрузка из админки может подменить файл (rename), и мы получили бы
+        // mtime старого с содержимым нового — метка «позже файла», ложный отказ.
+        const fh = await open(path, 'r');
+        let meta: Awaited<ReturnType<typeof fh.stat>>;
+        let buf: Buffer;
+        try {
+          [meta, buf] = await Promise.all([fh.stat(), fh.readFile()]);
+        } finally {
+          await fh.close();
+        }
         // Момент СНЯТИЯ выгрузки берём из самого файла, а не из mtime: между
         // выгрузкой из товароучётки и её появлением у нас бывают часы (живой
         // случай: снята в 09:00, доставлена в 15:31). По этому времени сверка
         // решает, какие остатки вправе перезаписать — mtime дал бы «файл
         // новее сегодняшних продаж» и откатил бы их (см. export-snapshot).
+        const rows = this.readRows(buf);
         const at = resolveExportAt({
           snapshotMs: readSnapshotTime(buf),
           mtimeMs: meta.mtimeMs,
           nowMs: Date.now(),
+          // Нижняя граница из самих данных — ловит метку, прочитанную в
+          // неверном (западнее реального) часовом поясе.
+          minPlausibleMs: readMaxUpdatedAt(rows),
         });
         if (at.source === 'rejected') {
           const msg = `выгрузка ${file} НЕ применена: ${at.reason}`;
           this.log.warn(`сверка: ${msg}`);
           await this.telegram.alert('Ночная сверка: неверное время выгрузки', msg);
           continue;
+        }
+        // Диагностику пишем ДО применения: если reconcileStore упадёт на
+        // середине, разбираться придётся именно по этой строке.
+        this.log.log(
+          `сверка ${storeId}: снимок ${new Date(at.atMs).toISOString()} ` +
+            `(источник — ${at.source === 'snapshot' ? 'метка внутри файла' : 'время файла'})`,
+        );
+        if (at.source === 'mtime') {
+          // Молча возвращаться к «времени файла» нельзя: именно эта семантика
+          // откатывала продажи, когда доставка отставала от выгрузки.
+          this.log.warn(`сверка ${file}: ${at.warn}`);
+          await this.telegram.alert(
+            'Сверка: у выгрузки нет метки времени',
+            `${file}: ${at.warn}`,
+          );
         }
         // Протухший файл НЕ применяем: сверка авторитетна и откатила бы
         // остатки, насчитанные за день живыми чеками, к старому снимку —
@@ -175,11 +208,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
           await this.telegram.alert('Ночная сверка: выгрузка устарела', msg);
           continue;
         }
-        const rows = this.readRows(buf);
         const s = await reconcileStore(this.db, storeId, rows, at.atMs);
-        this.log.log(
-          `сверка ${storeId}: снимок ${new Date(at.atMs).toISOString()} (источник — ${at.source === 'snapshot' ? 'метка внутри файла' : 'время файла'})`,
-        );
         summaries.push(s);
         this.log.log(
           `сверка ${storeId}: записано ${s.upserted}, цена ${s.priceChanged}, остаток ${s.qtyChanged}, новых ${s.isNew}, архив ${s.archived}`,
@@ -293,18 +322,34 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
         'каталог выгрузок не настроен (EVOTOR_RECONCILE_DIR) — загрузка недоступна',
       );
     }
-    // Время снятия достаём ДО записи: файл, у которого оно в будущем,
-    // принимать нельзя — сверка сочла бы его новее продаж и откатила их.
+    // Время снятия достаём ДО записи: негодный файл не должен затирать
+    // лежащую в каталоге рабочую выгрузку.
     const now = Date.now();
     const at = resolveExportAt({
       snapshotMs: readSnapshotTime(data),
       mtimeMs: now, // файл появляется у нас сейчас
       nowMs: now,
+      minPlausibleMs: readMaxUpdatedAt(this.readRows(data)),
     });
     if (at.source === 'rejected') {
       throw new Error(`файл не принят: ${at.reason}`);
     }
     const snapshotMs = at.source === 'snapshot' ? at.atMs : null;
+    // Свежесть считаем на момент БЛИЖАЙШЕЙ сверки, а не загрузки: файл
+    // возрастом «почти порог» к ночному прогону протухнет, и сообщить об
+    // этом надо сейчас, пока человек ещё у экрана.
+    const willRunAt = now + msUntilDailyRun(this.at, new Date(now));
+    const fresh =
+      snapshotMs === null ||
+      exportIsFresh(snapshotMs, willRunAt, this.maxFileAgeHours);
+    if (!fresh) {
+      const ageAtRun = Math.floor((willRunAt - snapshotMs!) / 3_600_000);
+      throw new Error(
+        `выгрузка снята ${new Date(snapshotMs!).toISOString()} — к ближайшей сверке ей будет ${ageAtRun} ч ` +
+          `при пороге ${this.maxFileAgeHours} ч, она не применится. Файл НЕ сохранён, ` +
+          `чтобы не затереть текущую выгрузку. Скачайте свежую и загрузите её.`,
+      );
+    }
 
     const file = reconcileFileName(storeId);
     const target = join(this.dir, file);
@@ -323,10 +368,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
       savedAt: new Date(now),
       snapshotAt: snapshotMs === null ? null : new Date(snapshotMs),
       ageHours: ageHours === null ? null : Math.round(ageHours * 10) / 10,
-      // Предупреждаем сразу, а не ночью: слишком старый снимок сверка
-      // пропустит (порог EVOTOR_RECONCILE_MAX_FILE_AGE_HOURS).
-      willApply:
-        snapshotMs === null || exportIsFresh(snapshotMs, now, this.maxFileAgeHours),
+      willApply: true, // негодные файлы сюда не доходят — отсеяны выше
     };
   }
 
