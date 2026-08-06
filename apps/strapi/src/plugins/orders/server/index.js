@@ -50,6 +50,10 @@ module.exports = {
         { method: 'PUT', path: '/orders/:id/status', handler: 'bridge.status', config: { policies: [] } },
         { method: 'PUT', path: '/orders/:id/items/:itemId/mark-codes', handler: 'bridge.markCodes', config: { policies: [] } },
         { method: 'POST', path: '/orders/:id/fiscalize', handler: 'bridge.fiscalize', config: { policies: [] } },
+        // Синхронизация с Эвотором: состояние, загрузка выгрузки, ручная сверка.
+        { method: 'GET', path: '/evotor/status', handler: 'bridge.evotorStatus', config: { policies: [] } },
+        { method: 'POST', path: '/evotor/upload', handler: 'bridge.evotorUpload', config: { policies: [] } },
+        { method: 'POST', path: '/evotor/reconcile', handler: 'bridge.evotorReconcile', config: { policies: [] } },
       ],
     },
   },
@@ -85,6 +89,43 @@ module.exports = {
       // Фискализация: бэкенд делает до двух вызовов ЮKassa — таймаут шире.
       fiscalize: proxy((ctx, c) =>
         c.request('POST', `/admin/orders/${Number(ctx.params.id)}/fiscalize`, undefined, { timeoutMs: 30000 }),
+      ),
+
+      // ---- синхронизация с Эвотором (выгрузка + сверка) ----
+      evotorStatus: proxy((ctx, c) => c.request('GET', '/admin/evotor/status')),
+
+      /**
+       * Загрузка выгрузки магазина. Файл приходит из админки в JSON как
+       * base64 — так не нужно перенастраивать парсер тела Strapi под
+       * multipart/binary ради одного маршрута; 350 КБ xlsx → ~470 КБ base64,
+       * это в пределах лимита JSON. Дальше уходит в бэкенд сырым телом,
+       * он проверит сигнатуру .xlsx и запишет `<storeId>.xlsx`.
+       */
+      evotorUpload: proxy((ctx, c) => {
+        const { storeId, filename, base64 } = ctx.request.body ?? {};
+        if (typeof base64 !== 'string' || !base64) {
+          throw Object.assign(new Error('Файл не получен'), { status: 400 });
+        }
+        const buf = Buffer.from(base64, 'base64');
+        if (!buf.length) {
+          throw Object.assign(new Error('Файл пустой или повреждён'), {
+            status: 400,
+          });
+        }
+        const q = new URLSearchParams({
+          storeId: String(storeId ?? ''),
+          filename: String(filename ?? 'export.xlsx'),
+        }).toString();
+        return c.request('POST', `/admin/evotor/upload?${q}`, buf, {
+          timeoutMs: 60000,
+        });
+      }),
+
+      // Сверка идёт по обоим магазинам и пишет тысячи строк — таймаут щедрый.
+      evotorReconcile: proxy((ctx, c) =>
+        c.request('POST', '/admin/evotor/reconcile', undefined, {
+          timeoutMs: 120000,
+        }),
       ),
     },
   },

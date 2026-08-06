@@ -41,3 +41,35 @@ export async function setStatus(id, status, reason) {
   const { data } = await put(`${base}/orders/${id}/status`, { status, reason });
   return data;
 }
+
+// ---- синхронизация с Эвотором ----
+
+export async function fetchEvotorStatus() {
+  const { get } = getFetchClient();
+  const { data } = await get(`${base}/evotor/status`);
+  return data;
+}
+
+/** Файл уходит base64 в JSON — см. комментарий в server/index.js. */
+export async function uploadExport(storeId, file) {
+  const { post } = getFetchClient();
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('не удалось прочитать файл'));
+    // result: "data:...;base64,XXXX" — нужен только хвост.
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.readAsDataURL(file);
+  });
+  const { data } = await post(`${base}/evotor/upload`, {
+    storeId,
+    filename: file.name,
+    base64,
+  });
+  return data;
+}
+
+export async function runReconcile() {
+  const { post } = getFetchClient();
+  const { data } = await post(`${base}/evotor/reconcile`);
+  return data;
+}

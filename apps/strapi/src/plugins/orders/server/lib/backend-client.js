@@ -16,13 +16,20 @@ function createBackendClient({ apiUrl, password, timeoutMs = 10000, fetchFn = fe
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), callTimeoutMs);
     try {
+      // Файл выгрузки Эвотора уходит сырым телом (Buffer) — его нельзя
+      // сериализовать в JSON: получился бы {"type":"Buffer","data":[...]}.
+      const isBinary = Buffer.isBuffer(body);
       const res = await fetchFn(`${apiUrl}${path}`, {
         method,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': isBinary
+            ? 'application/octet-stream'
+            : 'application/json',
           ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
         },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        ...(body !== undefined
+          ? { body: isBinary ? body : JSON.stringify(body) }
+          : {}),
         signal: ctrl.signal,
       });
       let json;
