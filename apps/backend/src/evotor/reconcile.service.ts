@@ -183,11 +183,9 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
         // середине, разбираться придётся именно по этой строке.
         this.log.log(
           `сверка ${storeId}: снимок ${new Date(at.atMs).toISOString()} ` +
-            `(источник — ${at.source === 'snapshot' ? 'метка внутри файла' : 'время файла'})`,
+            `(источник — ${at.source === 'snapshot' ? 'метка внутри файла' : 'нижняя граница по данным файла'})`,
         );
-        if (at.source === 'mtime') {
-          // Молча возвращаться к «времени файла» нельзя: именно эта семантика
-          // откатывала продажи, когда доставка отставала от выгрузки.
+        if (at.source === 'data') {
           this.log.warn(`сверка ${file}: ${at.warn}`);
           await this.telegram.alert(
             'Сверка: у выгрузки нет метки времени',
@@ -312,10 +310,11 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     bytes: number;
     savedAt: Date;
     /** Момент снятия выгрузки из товароучётки (из содержимого файла). */
-    snapshotAt: Date | null;
-    /** Возраст снимка в часах и пройдёт ли он порог свежести сверки. */
-    ageHours: number | null;
+    snapshotAt: Date;
+    /** Возраст снимка в часах на момент загрузки. */
+    ageHours: number;
     willApply: boolean;
+    warn: string;
   }> {
     if (!this.dir) {
       throw new Error(
@@ -334,18 +333,16 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     if (at.source === 'rejected') {
       throw new Error(`файл не принят: ${at.reason}`);
     }
-    const snapshotMs = at.source === 'snapshot' ? at.atMs : null;
+    // at.atMs здесь всегда есть: ветка 'rejected' отсеяна выше.
+    const snapshotMs = at.atMs;
     // Свежесть считаем на момент БЛИЖАЙШЕЙ сверки, а не загрузки: файл
     // возрастом «почти порог» к ночному прогону протухнет, и сообщить об
     // этом надо сейчас, пока человек ещё у экрана.
     const willRunAt = now + msUntilDailyRun(this.at, new Date(now));
-    const fresh =
-      snapshotMs === null ||
-      exportIsFresh(snapshotMs, willRunAt, this.maxFileAgeHours);
-    if (!fresh) {
-      const ageAtRun = Math.floor((willRunAt - snapshotMs!) / 3_600_000);
+    if (!exportIsFresh(snapshotMs, willRunAt, this.maxFileAgeHours)) {
+      const ageAtRun = Math.floor((willRunAt - snapshotMs) / 3_600_000);
       throw new Error(
-        `выгрузка снята ${new Date(snapshotMs!).toISOString()} — к ближайшей сверке ей будет ${ageAtRun} ч ` +
+        `выгрузка снята ${new Date(snapshotMs).toISOString()} — к ближайшей сверке ей будет ${ageAtRun} ч ` +
           `при пороге ${this.maxFileAgeHours} ч, она не применится. Файл НЕ сохранён, ` +
           `чтобы не затереть текущую выгрузку. Скачайте свежую и загрузите её.`,
       );
@@ -356,19 +353,19 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     const tmp = `${target}.part-${now}`;
     await writeFile(tmp, data);
     await rename(tmp, target);
-    const ageHours =
-      snapshotMs === null ? null : (now - snapshotMs) / 3_600_000;
     this.log.log(
       `выгрузка принята: ${file} (${data.length} байт), снимок ` +
-        (snapshotMs ? new Date(snapshotMs).toISOString() : 'без метки времени'),
+        `${new Date(snapshotMs).toISOString()} (источник — ${at.source})`,
     );
     return {
       file,
       bytes: data.length,
       savedAt: new Date(now),
-      snapshotAt: snapshotMs === null ? null : new Date(snapshotMs),
-      ageHours: ageHours === null ? null : Math.round(ageHours * 10) / 10,
+      snapshotAt: new Date(snapshotMs),
+      ageHours: Math.round(((now - snapshotMs) / 3_600_000) * 10) / 10,
       willApply: true, // негодные файлы сюда не доходят — отсеяны выше
+      /** Пустая строка — метка была; иначе объяснение, почему точность ниже. */
+      warn: at.source === 'data' ? at.warn : '',
     };
   }
 

@@ -129,11 +129,27 @@ describe('resolveExportAt', () => {
     });
   });
 
-  it('метки нет → откат на время файла, но с предупреждением (молча нельзя)', () => {
+  it('файл пересохранён в Excel (метки zip стёрты) → берём нижнюю границу из данных, НЕ время файла', () => {
+    // Живой случай: goods_export_...20260702 в корне проекта — все метки zip
+    // стали 1980-01-01, а колонка «Обновлен» цела. Время файла (11:59) позже
+    // правды и откатило бы продажи; граница из данных (08:07) — раньше и
+    // безопасна.
+    const dataBound = Date.parse('2026-08-05T05:46:44Z');
+    const r = resolveExportAt({
+      snapshotMs: null,
+      mtimeMs: MTIME,
+      nowMs: NOW,
+      minPlausibleMs: dataBound,
+    });
+    expect(r.source).toBe('data');
+    expect(r.atMs).toBe(dataBound);
+    expect(r.atMs).not.toBe(MTIME);
+    if (r.source === 'data') expect(r.warn).toContain('Excel');
+  });
+
+  it('ни метки, ни колонки «Обновлен» → отказ, время файла НЕ подставляем', () => {
     const r = resolveExportAt({ snapshotMs: null, mtimeMs: MTIME, nowMs: NOW });
-    expect(r.source).toBe('mtime');
-    expect(r.atMs).toBe(MTIME);
-    if (r.source === 'mtime') expect(r.warn).toContain('нет метки');
+    expect(rejected(r).reason).toContain('ни метки');
   });
 
   it('метка ПОЗЖЕ появления файла у нас — невозможно, отвергаем файл', () => {
