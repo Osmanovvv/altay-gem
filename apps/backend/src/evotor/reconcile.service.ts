@@ -13,6 +13,8 @@ import * as XLSX from 'xlsx';
 import { DB, type Database } from '../db/database.module';
 import { syncLog, webhookEvents } from '../db/schema';
 import { TelegramService } from '../notifications/telegram.service';
+import { cloudProductToRow } from './cloud-goods';
+import { EvotorApiService } from './evotor-api.service';
 import {
   readMaxUpdatedAt,
   readSnapshotTime,
@@ -46,6 +48,7 @@ import {
 export class ReconcileService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(ReconcileService.name);
   private readonly dir: string;
+  private readonly cloudStock: boolean;
   private readonly at: string;
   private readonly healthMinutes: number;
   private readonly reconcileMaxAgeHours: number;
@@ -59,7 +62,12 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     config: ConfigService,
     @Inject(DB) private readonly db: Database,
     private readonly telegram: TelegramService,
+    private readonly api: EvotorApiService,
   ) {
+    // Источник суточного снимка: облако Эвотора (нужны права на номенклатуру
+    // и остатки) или файл выгрузки из товароучётки. Пока права не выданы —
+    // остаётся файл, поэтому по умолчанию выключено.
+    this.cloudStock = config.get<string>('EVOTOR_CLOUD_STOCK', '') === '1';
     this.dir = config.get<string>('EVOTOR_RECONCILE_DIR', '') || '';
     this.at = config.get<string>('EVOTOR_RECONCILE_AT', '') || '03:30';
     this.healthMinutes = config.get<number>('EVOTOR_HEALTH_MINUTES') ?? 60;
@@ -75,19 +83,22 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     this.pollEnabled = (config.get<number>('EVOTOR_POLL_MINUTES') ?? 30) > 0;
   }
 
+  /** Есть ли вообще суточный снимок: из облака или из файла. */
   get reconcileEnabled(): boolean {
-    return this.dir !== '';
+    return this.cloudStock || this.dir !== '';
   }
 
   onModuleInit(): void {
     if (this.reconcileEnabled) {
       this.scheduleNextReconcile();
       this.log.log(
-        `Ночная сверка включена: ${this.at}, каталог выгрузок ${this.dir}`,
+        this.cloudStock
+          ? `Ночная сверка включена: ${this.at}, источник — ОБЛАКО Эвотора`
+          : `Ночная сверка включена: ${this.at}, каталог выгрузок ${this.dir}`,
       );
     } else {
       this.log.log(
-        'Ночная сверка выключена (EVOTOR_RECONCILE_DIR не задан) — работают чеки и поллинг',
+        'Ночная сверка выключена (нет ни EVOTOR_CLOUD_STOCK, ни EVOTOR_RECONCILE_DIR) — работают чеки и поллинг',
       );
     }
     if (this.healthMinutes > 0) {
@@ -108,7 +119,9 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
   private scheduleNextReconcile(): void {
     const delay = msUntilDailyRun(this.at, new Date());
     this.reconcileTimer = setTimeout(() => {
-      this.runReconcile()
+      // Облако (когда права выданы) — единственный источник, без человека.
+      // Иначе прежний путь: файл выгрузки из каталога.
+      (this.cloudStock ? this.runCloudSync() : this.runReconcile())
         .catch((err: Error) => this.log.error(`ночная сверка: ${err.message}`))
         .finally(() => this.scheduleNextReconcile()); // перепланируем на завтра
     }, delay);
@@ -230,6 +243,85 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
       const msg = `в каталоге ${this.dir} нет файлов вида <storeId>.xlsx`;
       this.log.warn(`сверка: ${msg}`);
       await this.telegram.alert('Ночная сверка: нет выгрузок', msg);
+    }
+    return summaries;
+  }
+
+  /**
+   * Сверка ПРЯМО ИЗ ОБЛАКА Эвотора — без файла выгрузки и без человека.
+   *
+   * Требует у приложения прав «Получать номенклатуру из облака Эвотор» и
+   * «Получить остатки номенклатуры из Облака Эвотор» (кабинет разработчика,
+   * вкладка «Интеграция»). Права вшиты в токен установки, поэтому после их
+   * включения приложение нужно переустановить в кабинете клиента — иначе
+   * ответ так и останется 403.
+   *
+   * Момент снимка — время НАЧАЛА чтения: пока страницы дочитываются, на кассе
+   * могут пройти продажи, и более поздняя метка позволила бы затереть их.
+   * Дальше всё идёт по той же дороге, что и файл: те же колонки, тот же
+   * парсер, та же охрана остатка по каждому товару, та же страховка от
+   * неполного источника.
+   */
+  async runCloudSync(): Promise<ReconcileSummary[]> {
+    if (!(await this.api.hasAccess())) {
+      this.log.warn('Сверка из облака: нет токена Эвотора — пропуск');
+      return [];
+    }
+    let stores: Array<{ id: string }>;
+    try {
+      stores = await this.api.listStores();
+    } catch (err) {
+      const msg = `список магазинов недоступен: ${(err as Error).message}`;
+      this.log.error(`сверка из облака: ${msg}`);
+      await this.telegram.alert('Сверка из облака не выполнена', msg);
+      return [];
+    }
+
+    const summaries: ReconcileSummary[] = [];
+    for (const store of stores) {
+      const atMs = Date.now(); // снимок «не позже» начала чтения
+      let products;
+      try {
+        products = await this.api.listProducts(store.id);
+      } catch (err) {
+        const msg = (err as Error).message;
+        // 403 — прав на номенклатуру нет; 402 — приложение не на всех кассах
+        // магазина. Это состояния настройки, а не сбой: сообщаем понятно.
+        const human = msg.includes('403')
+          ? 'нет права на чтение номенклатуры — включите опции в кабинете разработчика и переустановите приложение у клиента'
+          : msg.includes('402')
+            ? 'приложение установлено не на всех кассах магазина'
+            : msg;
+        this.log.warn(`сверка из облака, магазин ${store.id}: ${human}`);
+        await this.telegram.alert(
+          'Сверка из облака: магазин пропущен',
+          `${store.id}: ${human}`,
+        );
+        continue;
+      }
+
+      try {
+        const rows = products.map((p) => cloudProductToRow(p));
+        const s = await reconcileStore(this.db, store.id, rows, atMs);
+        summaries.push(s);
+        this.log.log(
+          `сверка из облака ${store.id}: прочитано ${products.length}, записано ${s.upserted}, ` +
+            `цена ${s.priceChanged}, остаток ${s.qtyChanged}, новых ${s.isNew}, архив ${s.archived}`,
+        );
+        if (s.failed || s.archivalSkipped) {
+          await this.telegram.alert(
+            'Сверка из облака прошла с замечаниями',
+            `Магазин ${store.id}: ошибок ${s.failed}` +
+              (s.archivalSkipped
+                ? `; архивация пропущена (прочитано ${s.imported} товаров — возможно неполный ответ)`
+                : ''),
+          );
+        }
+      } catch (err) {
+        const msg = `магазин ${store.id}: ${(err as Error).message}`;
+        this.log.error(`сверка из облака: ${msg}`);
+        await this.telegram.alert('Сверка из облака: ошибка магазина', msg);
+      }
     }
     return summaries;
   }
