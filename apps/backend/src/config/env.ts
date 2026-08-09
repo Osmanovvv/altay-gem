@@ -86,6 +86,23 @@ const envSchema = z.object({
     .int()
     .nonnegative()
     .optional(),
+
+  // Источник суточного снимка остатков: '1' — читать напрямую из Облака
+  // Эвотора (нужны права «Получать номенклатуру» и «Получить остатки»),
+  // пусто — файл выгрузки из каталога EVOTOR_RECONCILE_DIR.
+  EVOTOR_CLOUD_STOCK: z.string().optional(),
+  // Запас на отставание облака от продаж: снимок помечается временем начала
+  // чтения минус эти минуты, поэтому свежие чеки остаются за собой.
+  EVOTOR_CLOUD_LAG_MINUTES: z.coerce.number().int().nonnegative().optional(),
+  // Снимок остатков не применялся дольше N часов — напоминание обновить
+  // источник. Задаётся ритмом: облако ежедневное (26), файл недельный (192).
+  EVOTOR_SNAPSHOT_MAX_AGE_HOURS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+  // Окно молчания для повторов одного и того же алерта (0 — слать всегда).
+  EVOTOR_ALERT_COOLDOWN_HOURS: z.coerce.number().int().nonnegative().optional(),
   // Буфер против двойной продажи (ТЗ п.8, Путь B): сколько единиц НЕ показывать
   // к продаже (последний экземпляр придержан под офлайн-кассу). По умолчанию 1.
   EVOTOR_STOCK_SAFETY_BUFFER: z.coerce.number().int().nonnegative().optional(),
