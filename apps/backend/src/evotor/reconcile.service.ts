@@ -50,6 +50,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
   private readonly dir: string;
   private readonly cloudStock: boolean;
   private readonly alertCooldownHours: number;
+  private readonly snapshotMaxAgeHours: number;
   /** Когда последний раз слали алерт по ключу — против копий каждый час. */
   private alertSentAt: Map<string, number> = new Map();
   private readonly at: string;
@@ -74,6 +75,12 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     // Окно молчания для повторов одного и того же алерта (0 — слать всегда).
     this.alertCooldownHours =
       config.get<number>('EVOTOR_ALERT_COOLDOWN_HOURS') ?? 12;
+    // «Пора обновить выгрузку»: порог задаётся ритмом обновления снимка.
+    // Ритм недельный (остатки продающихся товаров ведут чеки), поэтому
+    // 8 суток = неделя с запасом. При переходе на облако снимок станет
+    // ежедневным, и порог имеет смысл снизить до 26 ч.
+    this.snapshotMaxAgeHours =
+      config.get<number>('EVOTOR_SNAPSHOT_MAX_AGE_HOURS') ?? 8 * 24;
     this.dir = config.get<string>('EVOTOR_RECONCILE_DIR', '') || '';
     this.at = config.get<string>('EVOTOR_RECONCILE_AT', '') || '03:30';
     this.healthMinutes = config.get<number>('EVOTOR_HEALTH_MINUTES') ?? 60;
@@ -141,6 +148,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
    */
   async runReconcile(): Promise<ReconcileSummary[]> {
     if (!this.reconcileEnabled) return [];
+    await this.markRun('file');
     let entries: string[];
     try {
       entries = await readdir(this.dir);
@@ -269,6 +277,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
    * неполного источника.
    */
   async runCloudSync(): Promise<ReconcileSummary[]> {
+    await this.markRun('cloud');
     if (!(await this.api.hasAccess())) {
       this.log.warn('Сверка из облака: нет токена Эвотора — пропуск');
       return [];
@@ -332,15 +341,49 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     return summaries;
   }
 
+  /**
+   * Отметка о ЗАПУСКЕ сверки — пишется в начале прогона, независимо от того,
+   * нашлось ли что применять. По ней мониторинг отличает «планировщик мёртв»
+   * от «снимок давно не обновляли»: раньше оба случая выглядели одинаково,
+   * и после перехода на недельный ритм выгрузки алерт «сверка не проходила»
+   * кричал бы каждый день при исправно работающей системе.
+   */
+  private async markRun(source: 'file' | 'cloud'): Promise<void> {
+    await this.db
+      .insert(syncLog)
+      .values({
+        direction: 'import',
+        entity: 'reconcile_run',
+        status: 'ok',
+        payload: { source },
+      })
+      .catch(() => undefined); // журнал не должен ронять прогон
+  }
+
   /** Оценить здоровье интеграции и разослать алерты по проблемам. */
   async checkHealth(): Promise<void> {
     // «Устарела» = сверка не ЗАПУСКАЛАСЬ вообще (ok ИЛИ error). Качество прогона
     // (ошибки строк) сигналит отдельный алерт из runReconcile — не путаем это с
     // «сверка не проходила» (иначе одна битая строка = ложный «не запускалась»).
-    const [rec] = await this.db
+    // ЗАПУСК сверки: отметка пишется в начале каждого прогона, даже если
+    // применять оказалось нечего. Отсутствие отметок = планировщик мёртв.
+    const [run] = await this.db
       .select({ ts: sql<Date | null>`max(${syncLog.createdAt})` })
       .from(syncLog)
-      .where(eq(syncLog.entity, 'reconciliation'));
+      .where(eq(syncLog.entity, 'reconcile_run'));
+    // ПРИМЕНЁННЫЙ снимок: успешная сверка хотя бы одного магазина.
+    const [snap] = await this.db
+      .select({ ts: sql<Date | null>`max(${syncLog.createdAt})` })
+      .from(syncLog)
+      .where(and(eq(syncLog.entity, 'reconciliation'), eq(syncLog.status, 'ok')));
+    // До появления отметок о запуске (старые данные) считаем запуском
+    // последнюю сверку — иначе после выкатки прилетел бы ложный алерт.
+    const [rec] = run?.ts
+      ? [run]
+      : await this.db
+          .select({ ts: sql<Date | null>`max(${syncLog.createdAt})` })
+          .from(syncLog)
+          .where(eq(syncLog.entity, 'reconciliation'));
     // Зависшие события меряем по firstReceivedAt: received_at сбрасывается на
     // now() при КАЖДОЙ повторной доставке (claimEvent оживляет 'failed'), иначе
     // непроходящий сбой никогда не «старел» бы и алерт молчал.
@@ -372,12 +415,16 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
       {
         reconcileEnabled: this.reconcileEnabled,
         lastReconcileAt: rec?.ts ? new Date(rec.ts) : null,
+        lastSnapshotAt: snap?.ts ? new Date(snap.ts) : null,
         failedEventCount: Number(fail?.n ?? 0),
         pollEnabled: this.pollEnabled,
         pollLastStatus,
         unparsedRecentCount: Number(unparsed?.n ?? 0),
       },
-      { reconcileMaxAgeHours: this.reconcileMaxAgeHours },
+      {
+        reconcileMaxAgeHours: this.reconcileMaxAgeHours,
+        snapshotMaxAgeHours: this.snapshotMaxAgeHours,
+      },
       Date.now(),
     );
     // Один и тот же алерт не повторяем чаще окна молчания: проверка идёт раз

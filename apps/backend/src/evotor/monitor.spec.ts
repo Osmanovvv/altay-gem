@@ -220,3 +220,84 @@ describe('dueAlerts', () => {
     expect(dueAlerts([A], sent, 1000 * H, 0).send).toHaveLength(1);
   });
 });
+
+/**
+ * Два РАЗНЫХ сигнала, которые раньше были склеены в один.
+ *
+ * «Сверка не запускалась» — авария: планировщик мёртв, процесс не крутится.
+ * Ловится по времени последней ПОПЫТКИ, независимо от её исхода.
+ *
+ * «Снимок остатков устарел» — операционка: попытки идут, но применять нечего,
+ * потому что выгрузку давно не обновляли. Ловится по времени последнего
+ * УСПЕШНОГО применения, и порог тут другой — под недельный ритм, а не суточный.
+ *
+ * Раньше оба случая давали один и тот же текст с порогом 26 часов. После
+ * перехода на «файл раз в неделю» это означало ежедневный ложный крик о том,
+ * что сверка не проходит, хотя она исправно запускается и осознанно
+ * пропускает протухший файл.
+ */
+describe('evaluateHealth: запуск сверки и свежесть снимка — разные сигналы', () => {
+  const H = 3_600_000;
+  const now = Date.UTC(2026, 7, 9, 12, 0);
+  const T = { reconcileMaxAgeHours: 26, snapshotMaxAgeHours: 8 * 24 };
+  const base = {
+    reconcileEnabled: true,
+    failedEventCount: 0,
+    lastReconcileAt: new Date(now - 2 * H),
+    lastSnapshotAt: new Date(now - 2 * H),
+  };
+
+  it('всё свежее — молчим', () => {
+    expect(evaluateHealth(base, T, now)).toEqual([]);
+  });
+
+  it('попытки идут, снимку 3 дня — при недельном ритме это НОРМА, молчим', () => {
+    const a = evaluateHealth(
+      { ...base, lastSnapshotAt: new Date(now - 72 * H) },
+      T,
+      now,
+    );
+    expect(a).toEqual([]);
+  });
+
+  it('снимку больше недели — операционный сигнал, но НЕ авария', () => {
+    const a = evaluateHealth(
+      { ...base, lastSnapshotAt: new Date(now - 9 * 24 * H) },
+      T,
+      now,
+    );
+    expect(a.map((x) => x.key)).toEqual(['snapshot_stale']);
+    expect(a[0].subject).toContain('выгрузк');
+  });
+
+  it('планировщик молчит сутки — авария, даже если снимок свежий', () => {
+    const a = evaluateHealth(
+      { ...base, lastReconcileAt: new Date(now - 30 * H) },
+      T,
+      now,
+    );
+    expect(a.map((x) => x.key)).toEqual(['reconcile_stale']);
+  });
+
+  it('и не запускалась, и снимок протух — оба сигнала, разными текстами', () => {
+    const a = evaluateHealth(
+      {
+        ...base,
+        lastReconcileAt: new Date(now - 30 * H),
+        lastSnapshotAt: new Date(now - 9 * 24 * H),
+      },
+      T,
+      now,
+    );
+    expect(a.map((x) => x.key).sort()).toEqual(['reconcile_stale', 'snapshot_stale']);
+  });
+
+  it('сверка выключена — ни того ни другого', () => {
+    const a = evaluateHealth(
+      { ...base, reconcileEnabled: false, lastReconcileAt: null, lastSnapshotAt: null },
+      T,
+      now,
+    );
+    expect(a).toEqual([]);
+  });
+});
