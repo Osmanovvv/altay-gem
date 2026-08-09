@@ -1,3 +1,5 @@
-# To prevent search engines from seeing the site altogether, uncomment the next two lines:
-# User-Agent: *
-# Disallow: /
+# Админка и медиатека: в поисковую выдачу не отдаём ничего.
+# Файл отдаётся на admin.ecomarket-altai.ru (Strapi). Витрина живёт на
+# ecomarket-altai.ru и имеет собственный robots.txt в apps/frontend/public.
+User-agent: *
+Disallow: /

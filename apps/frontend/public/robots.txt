@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin
+Disallow: /cart
+Disallow: /checkout
+Disallow: /order/
+Disallow: /search
+
+Sitemap: https://ecomarket-altai.ru/sitemap.xml
