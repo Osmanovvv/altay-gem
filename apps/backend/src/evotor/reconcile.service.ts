@@ -20,7 +20,7 @@ import {
   readSnapshotTime,
   resolveExportAt,
 } from './export-snapshot';
-import { evaluateHealth } from './monitor';
+import { dueAlerts, evaluateHealth } from './monitor';
 import { UUID_FORM } from './parse';
 import { reconcileFileName } from './reconcile-upload';
 import {
@@ -49,6 +49,9 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(ReconcileService.name);
   private readonly dir: string;
   private readonly cloudStock: boolean;
+  private readonly alertCooldownHours: number;
+  /** Когда последний раз слали алерт по ключу — против копий каждый час. */
+  private alertSentAt: Map<string, number> = new Map();
   private readonly at: string;
   private readonly healthMinutes: number;
   private readonly reconcileMaxAgeHours: number;
@@ -68,6 +71,9 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     // и остатки) или файл выгрузки из товароучётки. Пока права не выданы —
     // остаётся файл, поэтому по умолчанию выключено.
     this.cloudStock = config.get<string>('EVOTOR_CLOUD_STOCK', '') === '1';
+    // Окно молчания для повторов одного и того же алерта (0 — слать всегда).
+    this.alertCooldownHours =
+      config.get<number>('EVOTOR_ALERT_COOLDOWN_HOURS') ?? 12;
     this.dir = config.get<string>('EVOTOR_RECONCILE_DIR', '') || '';
     this.at = config.get<string>('EVOTOR_RECONCILE_AT', '') || '03:30';
     this.healthMinutes = config.get<number>('EVOTOR_HEALTH_MINUTES') ?? 60;
@@ -374,9 +380,24 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
       { reconcileMaxAgeHours: this.reconcileMaxAgeHours },
       Date.now(),
     );
-    for (const a of alerts) {
+    // Один и тот же алерт не повторяем чаще окна молчания: проверка идёт раз
+    // в час, и держащаяся сутками проблема иначе засыпает Telegram копиями,
+    // среди которых теряется настоящая авария (см. dueAlerts).
+    const { send, sentAt } = dueAlerts(
+      alerts,
+      this.alertSentAt,
+      Date.now(),
+      this.alertCooldownHours * 3_600_000,
+    );
+    this.alertSentAt = sentAt;
+    for (const a of send) {
       this.log.warn(`health-алерт [${a.key}]: ${a.subject}`);
       await this.telegram.alert(a.subject, a.detail);
+    }
+    // Продолжающиеся, но погашенные проблемы всё равно видны в логе.
+    for (const a of alerts) {
+      if (!send.includes(a))
+        this.log.warn(`health-алерт [${a.key}] продолжается (повтор погашен)`);
     }
   }
 

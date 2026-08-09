@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { evaluateHealth } from './monitor';
+import { dueAlerts, evaluateHealth } from './monitor';
 
 /**
  * Мониторинг интеграции (ТЗ р.10.3 п.9): по снимку состояния решаем, какие
@@ -163,5 +163,60 @@ describe('evaluateHealth', () => {
       NOW,
     );
     expect(a.map((x) => x.key)).not.toContain('poll_unhealthy');
+  });
+});
+
+/**
+ * Гашение повторов. Проверка здоровья идёт раз в час, и проблема, которая
+ * держится сутками (например, выгрузку давно не обновляли), присылала один и
+ * тот же текст каждый час — 8 одинаковых сообщений подряд в Telegram. Такой
+ * поток перестают читать, и настоящая авария теряется среди повторов.
+ *
+ * Правило: один и тот же ключ повторяем не чаще, чем раз в cooldown. НОВАЯ
+ * проблема уходит немедленно. Если проблема пропала и вернулась — тоже
+ * немедленно: пропажа сбрасывает счётчик.
+ */
+describe('dueAlerts', () => {
+  const H = 3_600_000;
+  const A = { key: 'reconcile_stale', subject: 'Сверка', detail: 'д' };
+  const B = { key: 'events_failed', subject: 'События', detail: 'д' };
+
+  it('первое появление уходит сразу', () => {
+    const r = dueAlerts([A], new Map(), 1000 * H, 12 * H);
+    expect(r.send.map((a) => a.key)).toEqual(['reconcile_stale']);
+    expect(r.sentAt.get('reconcile_stale')).toBe(1000 * H);
+  });
+
+  it('повтор в течение окна молчания подавляется', () => {
+    const sent = new Map([['reconcile_stale', 1000 * H]]);
+    const r = dueAlerts([A], sent, 1001 * H, 12 * H);
+    expect(r.send).toEqual([]);
+    expect(r.sentAt.get('reconcile_stale')).toBe(1000 * H); // метка не сдвинулась
+  });
+
+  it('после окна молчания напоминание уходит снова', () => {
+    const sent = new Map([['reconcile_stale', 1000 * H]]);
+    const r = dueAlerts([A], sent, 1013 * H, 12 * H);
+    expect(r.send.map((a) => a.key)).toEqual(['reconcile_stale']);
+    expect(r.sentAt.get('reconcile_stale')).toBe(1013 * H);
+  });
+
+  it('проблема пропала → метка забыта, возврат уведомит немедленно', () => {
+    const sent = new Map([['reconcile_stale', 1000 * H]]);
+    const gone = dueAlerts([], sent, 1001 * H, 12 * H);
+    expect(gone.sentAt.has('reconcile_stale')).toBe(false);
+    const back = dueAlerts([A], gone.sentAt, 1002 * H, 12 * H);
+    expect(back.send.map((a) => a.key)).toEqual(['reconcile_stale']);
+  });
+
+  it('разные проблемы не глушат друг друга', () => {
+    const sent = new Map([['reconcile_stale', 1000 * H]]);
+    const r = dueAlerts([A, B], sent, 1001 * H, 12 * H);
+    expect(r.send.map((a) => a.key)).toEqual(['events_failed']);
+  });
+
+  it('нулевое окно молчания — прежнее поведение, шлём каждый раз', () => {
+    const sent = new Map([['reconcile_stale', 1000 * H]]);
+    expect(dueAlerts([A], sent, 1000 * H, 0).send).toHaveLength(1);
   });
 });

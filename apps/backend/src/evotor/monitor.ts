@@ -103,3 +103,41 @@ export function evaluateHealth(
 
   return alerts;
 }
+
+/**
+ * Гашение повторов алертов.
+ *
+ * Проверка здоровья идёт раз в час, поэтому проблема, которая держится
+ * сутками (например, выгрузку давно не обновляли), присылала один и тот же
+ * текст каждый час. Такой поток перестают читать, и настоящая авария теряется
+ * среди повторов — это хуже, чем отсутствие мониторинга.
+ *
+ * Правило: один ключ повторяем не чаще раза в cooldownMs. Новая проблема
+ * уходит немедленно. Исчезновение проблемы забывает метку, поэтому её возврат
+ * тоже уведомит сразу, а не после окна молчания.
+ *
+ * Состояние держим в памяти процесса: после перезапуска бэкенда живая проблема
+ * напомнит о себе один лишний раз — это дешевле, чем таблица в БД ради
+ * подавления дублей.
+ */
+export function dueAlerts(
+  alerts: HealthAlert[],
+  sentAt: ReadonlyMap<string, number>,
+  nowMs: number,
+  cooldownMs: number,
+): { send: HealthAlert[]; sentAt: Map<string, number> } {
+  const active = new Set(alerts.map((a) => a.key));
+  const next = new Map<string, number>();
+  // Метки только по ЖИВЫМ проблемам: пропавшая забывается.
+  for (const [key, at] of sentAt) if (active.has(key)) next.set(key, at);
+
+  const send: HealthAlert[] = [];
+  for (const a of alerts) {
+    const last = next.get(a.key);
+    if (last === undefined || nowMs - last >= cooldownMs) {
+      send.push(a);
+      next.set(a.key, nowMs);
+    }
+  }
+  return { send, sentAt: next };
+}
