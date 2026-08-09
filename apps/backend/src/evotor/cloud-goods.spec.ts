@@ -20,7 +20,10 @@ describe('cloudProductToRow', () => {
     cost_price: 420.5,
     quantity: 22.154,
     code: '865',
-    article_number: '4607068350021',
+    // Артикул НАМЕРЕННО отличается от первого штрихкода: пока они совпадали,
+    // проверка matchKey проходила через артикульный фолбэк и не замечала,
+    // что штрихкоды теряются целиком (живой инцидент 09.08.2026).
+    article_number: 'ART-865',
     barcodes: ['4607068350021', '2000000000060'],
     measure_name: 'кг',
     type: 'NORMAL',
@@ -37,7 +40,10 @@ describe('cloudProductToRow', () => {
     expect(p!.costPriceKopecks).toBe(42050);
     expect(p!.quantity).toBe(22.154);
     expect(p!.measure).toBe('кг');
-    expect(p!.article).toBe('4607068350021');
+    expect(p!.article).toBe('ART-865');
+    // Штрихкоды приходят массивом и должны дойти целиком — именно здесь
+    // ломалось: массив молча превращался в пустой список.
+    expect(p!.barcodes).toEqual(['4607068350021', '2000000000060']);
     expect(p!.code).toBe('865');
     expect(p!.allowToSell).toBe(true);
     expect(p!.groupUuid).toBe(P.parent_id);
