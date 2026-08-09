@@ -13,7 +13,7 @@ import * as XLSX from 'xlsx';
 import { DB, type Database } from '../db/database.module';
 import { syncLog, webhookEvents } from '../db/schema';
 import { TelegramService } from '../notifications/telegram.service';
-import { cloudProductToRow } from './cloud-goods';
+import { cloudProductToRow, cloudSnapshotAt } from './cloud-goods';
 import { EvotorApiService } from './evotor-api.service';
 import {
   readMaxUpdatedAt,
@@ -51,6 +51,7 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
   private readonly cloudStock: boolean;
   private readonly alertCooldownHours: number;
   private readonly snapshotMaxAgeHours: number;
+  private readonly cloudLagMinutes: number;
   /** Когда последний раз слали алерт по ключу — против копий каждый час. */
   private alertSentAt: Map<string, number> = new Map();
   private readonly at: string;
@@ -72,6 +73,10 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
     // и остатки) или файл выгрузки из товароучётки. Пока права не выданы —
     // остаётся файл, поэтому по умолчанию выключено.
     this.cloudStock = config.get<string>('EVOTOR_CLOUD_STOCK', '') === '1';
+    // Запас на отставание облака от продаж (проверено живьём 09.08: у части
+    // товаров облако показывало остаток ДО только что прошедшей продажи).
+    // На эту величину снимок «стареет», и свежие чеки остаются за собой.
+    this.cloudLagMinutes = config.get<number>('EVOTOR_CLOUD_LAG_MINUTES') ?? 60;
     // Окно молчания для повторов одного и того же алерта (0 — слать всегда).
     this.alertCooldownHours =
       config.get<number>('EVOTOR_ALERT_COOLDOWN_HOURS') ?? 12;
@@ -294,7 +299,10 @@ export class ReconcileService implements OnModuleInit, OnModuleDestroy {
 
     const summaries: ReconcileSummary[] = [];
     for (const store of stores) {
-      const atMs = Date.now(); // снимок «не позже» начала чтения
+      // Снимок помечаем НАЧАЛОМ чтения минус запас на отставание облака:
+      // проверено живьём, что данные о продаже доезжают до облака не мгновенно,
+      // и метка «сейчас» перезаписала бы свежий чек остатком до продажи.
+      const atMs = cloudSnapshotAt(Date.now(), this.cloudLagMinutes);
       let products;
       try {
         products = await this.api.listProducts(store.id);

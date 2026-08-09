@@ -46,3 +46,12 @@ export function cloudProductToRow(
     raw_cloud: p,
   };
 }
+
+/**
+ * Момент, которым помечается снимок из облака: начало чтения минус запас на
+ * отставание облака (см. cloud-goods.spec). Запас никогда не сдвигает метку
+ * вперёд — иначе снимок получил бы власть над более свежими чеками.
+ */
+export function cloudSnapshotAt(fetchStartMs: number, lagMinutes: number): number {
+  return fetchStartMs - Math.max(0, lagMinutes) * 60_000;
+}
