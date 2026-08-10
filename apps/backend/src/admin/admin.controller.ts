@@ -25,6 +25,7 @@ import {
   Length,
 } from 'class-validator';
 import { eq } from 'drizzle-orm';
+import { cardPriceRub } from '../catalog/catalog-pricing';
 import { CatalogService } from '../catalog/catalog.service';
 import { DB, type Database } from '../db/database.module';
 import { evotorProducts } from '../db/schema';
@@ -95,7 +96,10 @@ export class AdminController {
    */
   @Get('replica/products/:uuid')
   @UseGuards(AdminGuard)
-  async replicaProduct(@Param('uuid') uuid: string) {
+  async replicaProduct(
+    @Param('uuid') uuid: string,
+    @Query('portionMassG') portionMassG?: string,
+  ) {
     // Кривой формат не отправляем в PG (uuid-колонка бросила бы 22P02).
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(uuid)) {
       throw new NotFoundException('Товар с таким evotor_uuid не найден в реплике');
@@ -107,14 +111,34 @@ export class AdminController {
         storeId: evotorProducts.storeId,
         isArchived: evotorProducts.isArchived,
         allowToSell: evotorProducts.allowToSell,
+        priceKopecks: evotorProducts.priceKopecks,
+        measure: evotorProducts.measure,
       })
       .from(evotorProducts)
       .where(eq(evotorProducts.evotorUuid, uuid))
+      // Один uuid есть в ОБОИХ магазинах: без порядка Postgres волен вернуть
+      // любую строку, и подсказка в админке меняла бы магазин от запроса к
+      // запросу. Берём тот же магазин, что и витрина (см. replica-index.ts).
+      .orderBy(evotorProducts.storeId)
       .limit(1);
     if (!rows.length) {
       throw new NotFoundException('Товар с таким evotor_uuid не найден в реплике');
     }
-    return rows[0];
+    const row = rows[0];
+    // Цена, которую видит покупатель: у весового это цена ПОРЦИИ, а не
+    // килограмма. Считаем той же функцией, что и карточку, — иначе админка
+    // проверяла бы ввод против другого числа (частая ошибка: старая цена
+    // вписана за килограмм, витрина рисует «-90%»).
+    const parsedPortion = Number(portionMassG);
+    return {
+      ...row,
+      priceRub: cardPriceRub({
+        priceKopecks: row.priceKopecks,
+        measure: row.measure,
+        portionMassG: Number.isFinite(parsedPortion) ? parsedPortion : null,
+      }),
+      isWeight: row.measure === 'кг',
+    };
   }
 
   /**

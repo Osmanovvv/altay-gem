@@ -154,7 +154,8 @@ export interface ApiDeliveryQuote {
   subtotalRub: number;
   discountRub: number;
   totalRub: number;
-  weightG: number;
+  /** null — у какой-то позиции не задан вес; доставку по России не посчитать. */
+  weightG: number | null;
   freeDeliveryThresholdRub: number | null;
   stockProblems?: Array<{
     id: string;

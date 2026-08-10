@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-reac
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
 import { gradientFor, toProduct, type ApiCard } from "@/lib/api";
+import { discountPercent, strikePrice } from "@/lib/price-view";
 
 /** Карточка карусели хитов; собирается из ApiCard (/home.hits). */
 interface Bestseller {
@@ -188,9 +189,11 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
           }}
         >
           {BESTSELLERS.map((p, idx) => {
-            const discount = p.oldPrice
-              ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100)
-              : 0;
+            // Правило показа скидки — общее с карточкой и каталогом; своей
+            // формулы здесь больше нет (она давала процент даже тогда, когда
+            // цену в кассе подняли выше старой).
+            const oldPrice = strikePrice(p.price, p.oldPrice);
+            const discount = discountPercent(p.price, p.oldPrice) ?? 0;
             const badge = p.badge;
             return (
               <motion.article
@@ -315,13 +318,13 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                         fontVariantNumeric: "tabular-nums",
                         fontWeight: 600,
                         fontSize: 24,
-                        color: p.oldPrice ? "var(--color-accent-dark)" : "var(--color-text)",
+                        color: oldPrice ? "var(--color-accent-dark)" : "var(--color-text)",
                         lineHeight: 1,
                       }}
                     >
                       {formatPrice(p.price)}
                     </span>
-                    {p.oldPrice && (
+                    {oldPrice && (
                       <span
                         style={{
                           fontFamily: "var(--font-body)",
@@ -331,7 +334,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                           textDecoration: "line-through",
                         }}
                       >
-                        {formatPrice(p.oldPrice)}
+                        {formatPrice(oldPrice)}
                       </span>
                     )}
                     {discount > 0 && (

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { MapPin, Minus, Plus, ShoppingBag, Truck } from "lucide-react";
 import type { Product } from "@/data/products";
+import { strikePrice } from "@/lib/price-view";
 
 /** Данные карточки, приходящие из API (характеристики, остаток, описание). */
 export interface ProductInfoDetail {
@@ -41,6 +42,7 @@ interface ProductInfoProps {
 
 export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
   const stock = product.inStock ? detail.stock : 0;
+  const oldPrice = strikePrice(product.price, product.oldPrice);
   const pickupAvailability = detail.pickupAvailability ?? [];
   const [qty, setQty] = useState(1);
 
@@ -141,7 +143,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
         >
           {formatPrice(product.price)}
         </span>
-        {product.oldPrice && (
+        {oldPrice && (
           <span
             style={{
               fontFamily: "var(--font-body)",
@@ -151,7 +153,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
               textDecoration: "line-through",
             }}
           >
-            {formatPrice(product.oldPrice)}
+            {formatPrice(oldPrice)}
           </span>
         )}
         <span

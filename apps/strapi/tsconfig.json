@@ -38,6 +38,9 @@
     "src/admin/",
     // Do not include test files
     "**/*.test.*",
+    // Тесты пишем в *.spec.ts (bun test) — в сборку сервера они не входят:
+    // иначе компиляция падает на типах 'bun:test', которых в рантайме нет.
+    "**/*.spec.*",
     // Do not include plugins in the server compilation
     "src/plugins/**"
   ]

@@ -6,11 +6,13 @@
   "attributes": {
     "weightUpToG": {
       "type": "integer",
-      "required": true
+      "required": true,
+      "min": 1
     },
     "priceRub": {
       "type": "decimal",
-      "required": true
+      "required": true,
+      "min": 0
     }
   }
 }

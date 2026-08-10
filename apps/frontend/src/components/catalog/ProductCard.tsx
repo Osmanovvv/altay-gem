@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
 import type { Product } from "@/data/products";
 import { useCart } from "@/context/CartContext";
+import { strikePrice } from "@/lib/price-view";
 
 const BADGE_STYLES: Record<string, { bg: string; color: string }> = {
   Хит: { bg: "var(--color-accent)", color: "var(--color-bg-dark)" },
@@ -24,6 +25,9 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onAdd }: ProductCardProps) {
   const p = product;
+  // Не «если поле не пустое», а общее правило: цена в кассе могла подрасти
+  // выше старой, и тогда зачёркивать нечего (см. lib/price-view.ts).
+  const oldPrice = strikePrice(p.price, p.oldPrice);
   const { items, updateQuantity } = useCart();
   const cartItem = items.find((i) => i.product.id === p.id);
   return (
@@ -160,13 +164,13 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
               fontVariantNumeric: "tabular-nums",
               fontWeight: 600,
               fontSize: 22,
-              color: p.oldPrice ? "var(--color-accent-dark)" : "var(--color-text)",
+              color: oldPrice ? "var(--color-accent-dark)" : "var(--color-text)",
               lineHeight: 1,
             }}
           >
             {formatPrice(p.price)}
           </span>
-          {p.oldPrice && (
+          {oldPrice && (
             <span
               style={{
                 fontFamily: "var(--font-body)",
@@ -176,7 +180,7 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
                 textDecoration: "line-through",
               }}
             >
-              {formatPrice(p.oldPrice)}
+              {formatPrice(oldPrice)}
             </span>
           )}
           <span

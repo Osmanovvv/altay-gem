@@ -78,7 +78,7 @@
     },
     "deliveryWeightG": {
       "type": "integer",
-      "min": 0
+      "min": 1
     },
     "heroProduct": {
       "type": "boolean",

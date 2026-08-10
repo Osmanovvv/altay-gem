@@ -13,7 +13,9 @@ import {
   StrapiService,
 } from '../strapi/strapi.service';
 import { perStoreAvailability } from './catalog-availability';
+import { cardPriceRub, displayOldPrice } from './catalog-pricing';
 import { hasStorefrontCategory } from './publishable';
+import { indexReplicaByUuid } from './replica-index';
 import { safePortionMassG } from './stock';
 
 /** Карточка товара для списков (контракт витрины, ТЗ р.9). */
@@ -68,6 +70,8 @@ export interface ProductInternal {
   deliveryWeightG: number | null;
   isPerishable: boolean;
   priceRub: number;
+  /** Витринная старая цена, уже прошедшая правило показа; null — скидки нет. */
+  oldPriceRub: number | null;
   name: string;
   categorySlug: string | null;
   isMarked: boolean;
@@ -75,8 +79,6 @@ export interface ProductInternal {
 
 const CACHE_KEY = 'catalog:enriched:v2'; // v2: карточка получила pickupAvailability
 const CACHE_TTL_S = 60;
-/** Вес по умолчанию для расчёта доставки, если контентщик не заполнил, г. */
-const FALLBACK_UNIT_WEIGHT_G = 500;
 
 /**
  * Каталог = реплика Эвотора (цены/остатки) + обогащение Strapi (витрина).
@@ -140,7 +142,10 @@ export class CatalogService {
             eq(evotorProducts.isArchived, false),
             eq(evotorProducts.allowToSell, true),
           ),
-        ),
+        )
+        // Порядок задан явно: без него Postgres волен вернуть строки как угодно,
+        // и наличие по точкам собиралось бы в разном порядке между прогонами.
+        .orderBy(evotorProducts.storeId, evotorProducts.evotorUuid),
       // активные резервы уменьшают доступный остаток немедленно (ТЗ 8.2)
       this.db
         .select({
@@ -171,14 +176,15 @@ export class CatalogService {
       reservedByKey.set(`${r.storeId}|${r.evotorUuid}`, Number(r.qty));
     }
 
-    const byUuid = new Map<string, ReplicaRow & { isMarked: boolean }>();
+    // Один uuid — две строки (по магазину на точку), цены могут различаться.
+    // Какая строка представляет товар на витрине, решаем явно и одинаково.
+    const byUuid = indexReplicaByUuid(replica);
     // matchKey → [{storeId, qty}] — остаток за вычетом резервов ПО МАГАЗИНАМ
     const qtyByMatchKey = new Map<
       string,
       Array<{ storeId: string; qty: number }>
     >();
     for (const row of replica) {
-      byUuid.set(row.evotorUuid, row);
       const available =
         Number(row.quantity) -
         (reservedByKey.get(`${row.storeId}|${row.evotorUuid}`) ?? 0);
@@ -222,6 +228,7 @@ export class CatalogService {
         deliveryWeightG: sp.deliveryWeightG ?? null,
         isPerishable: sp.isPerishable,
         priceRub: card.priceRub,
+        oldPriceRub: card.oldPriceRub,
         name: sp.adminName,
         categorySlug: sp.category?.slug ?? null,
         isMarked: rep.isMarked,
@@ -240,14 +247,23 @@ export class CatalogService {
     await this.cache.invalidatePrefix('catalog:');
   }
 
-  /** Вес единицы товара для расчёта доставки, г. */
-  unitWeightG(p: ProductInternal): number {
+  /**
+   * Вес единицы товара для расчёта доставки, г. null — вес не задан.
+   *
+   * Раньше здесь подставлялись 500 г. ТЗ р.12 такой догадки не предусматривает
+   * («штучные — по весу из характеристик»), а угаданный вес — это неверная
+   * цена доставки в обе стороны, о которой никто не узнает: лёгкие травы
+   * уезжали бы как килограмм, тяжёлый мёд — как полкило. Пусть лучше расчёт
+   * честно откажет (см. delivery.ts, WEIGHT_UNKNOWN), а владелец увидит в логе,
+   * какой карточке не хватает поля.
+   */
+  unitWeightG(p: ProductInternal): number | null {
     if (p.measure === 'кг') return safePortionMassG(p.portionMassG);
     if (p.deliveryWeightG) return p.deliveryWeightG;
     this.log.warn(
-      `у товара «${p.name}» не задан вес для доставки — использую ${FALLBACK_UNIT_WEIGHT_G} г`,
+      `у товара «${p.name}» не задан вес для доставки — доставка по России посчитана не будет`,
     );
-    return FALLBACK_UNIT_WEIGHT_G;
+    return null;
   }
 
   private toCard(
@@ -258,9 +274,11 @@ export class CatalogService {
   ): ProductCard {
     const isWeight = rep.measure === 'кг';
     const portionG = safePortionMassG(sp.portionMassG);
-    const priceRub = isWeight
-      ? Math.round((rep.priceKopecks / 100) * (portionG / 1000))
-      : Math.round(rep.priceKopecks / 100);
+    const priceRub = cardPriceRub({
+      priceKopecks: rep.priceKopecks,
+      measure: rep.measure,
+      portionMassG: sp.portionMassG,
+    });
     // По-магазинно (порции+буфер на точку), агрегат = сумма — как при заказе.
     const { totalUnits: availableQty, pickupAvailability } =
       perStoreAvailability({
@@ -274,10 +292,13 @@ export class CatalogService {
     const badges: string[] = [];
     if (sp.isHit) badges.push('Хит');
     if (sp.isNew) badges.push('Новинка');
-    const oldPrice = sp.oldPriceRub ?? null;
-    if (oldPrice && oldPrice > priceRub) {
-      badges.push(`-${Math.round((1 - priceRub / oldPrice) * 100)}%`);
-    }
+    // Старая цена и «-N%» — одно решение, принимается в одном месте: показать
+    // зачёркнутую цену без бейджа (или наоборот) значит соврать покупателю.
+    const { oldPriceRub: oldPrice, discountBadge } = displayOldPrice({
+      oldPriceRub: sp.oldPriceRub,
+      priceRub,
+    });
+    if (discountBadge) badges.push(discountBadge);
 
     return {
       id: sp.slug,

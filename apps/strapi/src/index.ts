@@ -3,6 +3,7 @@ import { errors } from '@strapi/utils';
 import path from 'node:path';
 
 import { applyFieldHints } from './field-hints';
+import { oldPriceProblem } from './validate-old-price';
 
 interface HeroLifecycleEvent {
   result?: { id?: number; heroProduct?: boolean };
@@ -72,18 +73,35 @@ function invalidateCatalogCache(strapi: Core.Strapi): void {
  * прятать товар с витрины). Несуществующий uuid — понятная ошибка в админке.
  * Сетевой сбой моста — fail-open (сохранение не блокируем), с warn-логом.
  */
+interface ProductData {
+  evotorUuid?: string;
+  oldPriceRub?: number | string | null;
+  portionMassG?: number | string | null;
+}
+
+interface ReplicaProduct {
+  name?: string;
+  priceRub?: number;
+  isWeight?: boolean;
+}
+
 async function assertEvotorUuidExists(
   strapi: Core.Strapi,
-  data: { evotorUuid?: string } | undefined,
+  data: ProductData | undefined,
 ): Promise<void> {
   const uuid = data?.evotorUuid?.trim();
   const client = getBridge(strapi);
   if (!uuid || !client) return;
+  // Массу порции передаём, чтобы бэкенд вернул цену ТОЙ ЖЕ порции, что увидит
+  // покупатель, — сравнивать старую цену с ценой за килограмм бессмысленно.
+  const portion = Number(data?.portionMassG);
+  const query = Number.isFinite(portion) ? `?portionMassG=${portion}` : '';
+  let product: ReplicaProduct;
   try {
-    await client.request(
+    product = (await client.request(
       'GET',
-      `/admin/replica/products/${encodeURIComponent(uuid)}`,
-    );
+      `/admin/replica/products/${encodeURIComponent(uuid)}${query}`,
+    )) as ReplicaProduct;
   } catch (e) {
     const status = (e as { status?: number }).status;
     if (status === 404) {
@@ -95,7 +113,12 @@ async function assertEvotorUuidExists(
     strapi.log.warn(
       `[product] реплика недоступна, evotor_uuid не проверен: ${(e as Error).message}`,
     );
+    return;
   }
+  // Сюда доходим только с живым ответом моста: проверка цены не должна
+  // блокировать сохранение из-за сетевого сбоя (то же fail-open, что у uuid).
+  const problem = oldPriceProblem(data ?? {}, product);
+  if (problem) throw new errors.ApplicationError(problem);
 }
 
 /** Снять флаг heroProduct со всех товаров, кроме только что отмеченного. */
@@ -140,13 +163,13 @@ export default {
       async beforeCreate(event) {
         await assertEvotorUuidExists(
           strapi,
-          event.params?.data as { evotorUuid?: string } | undefined,
+          event.params?.data as ProductData | undefined,
         );
       },
       async beforeUpdate(event) {
         await assertEvotorUuidExists(
           strapi,
-          event.params?.data as { evotorUuid?: string } | undefined,
+          event.params?.data as ProductData | undefined,
         );
       },
     });

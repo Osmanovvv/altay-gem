@@ -6,6 +6,7 @@ import { AlertTriangle, Minus, Plus, ShoppingBag, ShoppingCart, Trash2, X } from
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart, type CartItem } from "@/context/CartContext";
+import { strikePrice } from "@/lib/price-view";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -286,7 +287,10 @@ function CartItemRow({
 }) {
   const { product, quantity } = item;
   const lineTotal = product.price * quantity;
-  const oldLineTotal = product.oldPrice ? product.oldPrice * quantity : null;
+  // Снимок товара лежит в localStorage и переживает изменение цены в кассе:
+  // зачёркиваем только тогда, когда старая цена действительно выше текущей.
+  const oldPrice = strikePrice(product.price, product.oldPrice);
+  const oldLineTotal = oldPrice ? oldPrice * quantity : null;
 
   return (
     <motion.li

@@ -66,7 +66,8 @@ import {
   calcDelivery,
   DeliveryMethod,
   DeliveryNotAvailableError,
-  DeliveryTariffs,
+  normalizeTariffs,
+  orderWeightG,
 } from './delivery';
 import type { CreateOrderDto } from './dto/create-order.dto';
 
@@ -387,17 +388,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     );
 
     // 4. доставка по тарифам из админки (ТЗ р.12)
-    const tariffsRaw = await this.strapi.deliveryTariffs();
-    const tariffs: DeliveryTariffs = {
-      courierNskPriceRub: Number(tariffsRaw.courierNskPriceRub ?? 0),
-      freeDeliveryThresholdRub:
-        tariffsRaw.freeDeliveryThresholdRub == null
-          ? null
-          : Number(tariffsRaw.freeDeliveryThresholdRub),
-      russiaWeightTiers:
-        (tariffsRaw.russiaWeightTiers as DeliveryTariffs['russiaWeightTiers']) ??
-        [],
-    };
+    const tariffs = normalizeTariffs(await this.strapi.deliveryTariffs());
     let deliveryRub: number;
     try {
       deliveryRub = calcDelivery(
@@ -666,6 +657,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           evotorUuid: p.evotorUuid,
           name: p.name,
           priceKopecks: rubToKopecks(p.priceRub),
+          // Снимок старой цены (ПЛАН РАЗРАБОТКИ, стр. 510). Покупателю
+          // показывали зачёркнутую цену — значит в заказе должно остаться
+          // ЧТО именно показывали: иначе спор «у вас было -13%» разбирать
+          // нечем, цена в кассе к тому времени уже другая.
+          oldPriceKopecks:
+            p.oldPriceRub === null ? null : rubToKopecks(p.oldPriceRub),
           quantity,
           portionMassG:
             p.measure === 'кг' ? safePortionMassG(p.portionMassG) : null,
@@ -819,17 +816,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       discountRub = promo.discountRub;
     }
 
-    const tariffsRaw = await this.strapi.deliveryTariffs();
-    const tariffs: DeliveryTariffs = {
-      courierNskPriceRub: Number(tariffsRaw.courierNskPriceRub ?? 0),
-      freeDeliveryThresholdRub:
-        tariffsRaw.freeDeliveryThresholdRub == null
-          ? null
-          : Number(tariffsRaw.freeDeliveryThresholdRub),
-      russiaWeightTiers:
-        (tariffsRaw.russiaWeightTiers as DeliveryTariffs['russiaWeightTiers']) ??
-        [],
-    };
+    const tariffs = normalizeTariffs(await this.strapi.deliveryTariffs());
     const deliveryLines = lines.map((l) => ({
       quantity: l.quantity,
       unitWeightG: this.catalog.unitWeightG(l.p),
@@ -853,10 +840,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         subtotalRub,
         discountRub,
         totalRub: subtotalRub - discountRub + deliveryRub,
-        weightG: deliveryLines.reduce(
-          (s, l) => s + l.unitWeightG * l.quantity,
-          0,
-        ),
+        weightG: orderWeightG(deliveryLines),
         freeDeliveryThresholdRub: tariffs.freeDeliveryThresholdRub,
         ...(stockProblems.length ? { stockProblems } : {}),
       };

@@ -91,6 +91,7 @@ function CheckoutPage() {
   const [done, setDone] = useState(false);
   // Стоимость доставки считает сервер и показывает в сводке ДО оплаты (ТЗ 6.7)
   const [quote, setQuote] = useState<ApiDeliveryQuote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   // Идемпотентность повторных кликов «Подтвердить» (двойной сабмит = тот же заказ)
   const [idempotencyKey] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -146,6 +147,7 @@ function CheckoutPage() {
     // Сбрасываем прежний расчёт сразу: при смене способа не должны мигать
     // stockProblems/цена предыдущего способа, в сводке честное «—» (#37).
     setQuote(null);
+    setQuoteError(null);
     let cancelled = false;
     quoteDelivery({
       deliveryMethod: form.delivery,
@@ -158,10 +160,22 @@ function CheckoutPage() {
       .catch((err: unknown) => {
         if (cancelled) return;
         setQuote(null);
+        // Скоропорт по России — единственный случай, когда способ доставки
+        // невозможен в принципе: сбрасываем выбор. Остальные отказы (заказ
+        // тяжелее сетки, тарифы не настроены, промокод перестал подходить)
+        // оставляют выбор на месте и объясняются текстом на шаге — раньше они
+        // молча гасили расчёт, и покупатель упирался в ошибку только на
+        // отправке, видя до этого сумму БЕЗ доставки.
         if (err instanceof ApiError && err.body.code === "PERISHABLE_RUSSIA_BLOCKED") {
           toast.error(String(err.message));
           setForm((f) => ({ ...f, delivery: "" }));
+          return;
         }
+        setQuoteError(
+          err instanceof ApiError
+            ? String(err.message)
+            : "Не удалось рассчитать доставку. Проверьте связь и попробуйте ещё раз",
+        );
       });
     return () => {
       cancelled = true;
@@ -296,6 +310,12 @@ function CheckoutPage() {
       toast.error("Недостаточно товара для выбранного способа получения");
       return;
     }
+    // Без посчитанной доставки итог неизвестен — дальше пускать нельзя,
+    // иначе покупатель дойдёт до подтверждения и упрётся в отказ сервера.
+    if (step === 1 && form.delivery && quoteError) {
+      toast.error(quoteError);
+      return;
+    }
     if (step === 1 && requireEmailForOnline()) return;
     setStep((s) => (s < 2 ? ((s + 1) as Step) : s));
   }
@@ -322,6 +342,11 @@ function CheckoutPage() {
     }
     if (stockProblems.length > 0) {
       toast.error("Недостаточно товара для выбранного способа получения");
+      setStep(1);
+      return;
+    }
+    if (quoteError) {
+      toast.error(quoteError);
       setStep(1);
       return;
     }
@@ -581,6 +606,37 @@ function CheckoutPage() {
                           />
                         </div>
 
+                        {form.delivery && quoteError && (
+                          <div
+                            className="flex flex-col gap-2 rounded-2xl"
+                            style={{
+                              border: "1px solid rgba(192,84,52,0.35)",
+                              backgroundColor: "rgba(192,84,52,0.07)",
+                              padding: "14px 16px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: "var(--font-body)",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "var(--color-error)",
+                              }}
+                            >
+                              Доставку не удалось рассчитать
+                            </span>
+                            <span
+                              style={{
+                                fontFamily: "var(--font-body)",
+                                fontSize: 13,
+                                color: "var(--color-text)",
+                              }}
+                            >
+                              {quoteError}
+                            </span>
+                          </div>
+                        )}
+
                         {form.delivery && stockProblems.length > 0 && (
                           <div
                             className="flex flex-col gap-2 rounded-2xl"
@@ -768,7 +824,7 @@ function CheckoutPage() {
                   <div className="sticky top-24">
                     <OrderSummary
                       count={count}
-                      total={total + (quote?.deliveryRub ?? 0)}
+                      total={form.delivery && !quote ? null : total + (quote?.deliveryRub ?? 0)}
                       subtotal={total}
                       deliveryCost={quote ? quote.deliveryRub : null}
                       deliveryLabel={deliveryLabel || "—"}
@@ -780,7 +836,7 @@ function CheckoutPage() {
                 <div className="lg:hidden">
                   <OrderSummary
                     count={count}
-                    total={total + (quote?.deliveryRub ?? 0)}
+                    total={form.delivery && !quote ? null : total + (quote?.deliveryRub ?? 0)}
                     subtotal={total}
                     deliveryCost={quote ? quote.deliveryRub : null}
                     deliveryLabel={deliveryLabel || "—"}
@@ -1084,7 +1140,8 @@ function OrderSummary({
   deliveryLabel,
 }: {
   count: number;
-  total: number;
+  /** null — доставка ещё не посчитана: показываем «—», а не сумму без неё. */
+  total: number | null;
   subtotal: number;
   deliveryCost: number | null;
   deliveryLabel: string;
@@ -1147,7 +1204,7 @@ function OrderSummary({
             lineHeight: 1,
           }}
         >
-          {formatPrice(total)}
+          {total === null ? "—" : formatPrice(total)}
         </span>
       </div>
     </div>

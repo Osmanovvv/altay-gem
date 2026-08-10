@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Product } from "@/data/products";
 import { validatePromo } from "@/lib/api";
+import { strikePrice } from "@/lib/price-view";
 
 export interface CartItem {
   product: Product;
@@ -180,8 +181,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items, promoDiscountRub],
   );
 
+  // Сумма по СТАРЫМ ценам. Старая цена учитывается, только если она реально
+  // выше текущей: снимок товара в localStorage переживает изменение цены в
+  // кассе, и протухшее значение уводило эту сумму НИЖЕ фактической — тогда
+  // «Скидка» в сводке уходила в минус и сводка переставала сходиться.
   const getCartOldTotal = useCallback(
-    () => items.reduce((sum, i) => sum + (i.product.oldPrice ?? i.product.price) * i.quantity, 0),
+    () =>
+      items.reduce(
+        (sum, i) =>
+          sum + (strikePrice(i.product.price, i.product.oldPrice) ?? i.product.price) * i.quantity,
+        0,
+      ),
     [items],
   );
 
