@@ -11,7 +11,6 @@ import { FindUsSection } from "@/components/home/FindUsSection";
 import { HeroSection } from "@/components/home/HeroSection";
 import { PromoBanner } from "@/components/home/PromoBanner";
 import { WhyChooseUsSection } from "@/components/home/WhyChooseUsSection";
-import { HOME_ASSETS } from "@/data/homeAssets";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -27,17 +26,10 @@ export const Route = createFileRoute("/")({
           "Свой алтайский мёд, продукты пчеловодства, травяные чаи, деликатесы и подарочные наборы. Два магазина в Новосибирске, доставка по России.",
       },
     ],
-    // Предзагрузка hero первого экрана (LCP): без неё браузер находит <img>
-    // только после разбора HTML. Только на главной — на других страницах
-    // картинки нет. nginx по Accept отдаст webp, иначе jpg (тот же URL).
-    links: [
-      {
-        rel: "preload",
-        as: "image",
-        href: HOME_ASSETS.altaiHero.src,
-        fetchPriority: "high",
-      },
-    ],
+    // Ручной preload фона первого экрана убран: React 19 сам выпускает
+    // <link rel=preload> для картинки с fetchPriority="high" при SSR, и в
+    // HTML он оказывался ДВАЖДЫ. Приоритет теперь задаётся на самих <img>
+    // в HeroSection — там же, где видно, какая картинка первого экрана.
   }),
   component: HomePage,
 });

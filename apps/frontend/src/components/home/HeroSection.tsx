@@ -220,12 +220,18 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
                   background: featuredProduct.image,
                 }}
               >
+                {/* Фото товара-хита — это и есть элемент LCP первого экрана
+                    (замер Lighthouse: не фон секции, а именно эта карточка).
+                    fetchPriority="high" обязателен: React 19 сам ставит на
+                    такую картинку <link rel=preload>, но БЕЗ приоритета —
+                    и она встаёт в общую очередь за скриптами. */}
                 <img
                   src={photoUrl ?? HOME_ASSETS.honeyJars.src}
                   alt={featuredProduct.name}
                   width={720}
                   height={480}
                   loading="eager"
+                  fetchPriority="high"
                   decoding="async"
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />

@@ -3,6 +3,7 @@ import { errors } from '@strapi/utils';
 import path from 'node:path';
 
 import { applyFieldHints } from './field-hints';
+import { imageTargets, type UploadFileResult } from './upload-image-targets';
 import { oldPriceProblem } from './validate-old-price';
 
 interface HeroLifecycleEvent {
@@ -122,22 +123,23 @@ async function assertEvotorUuidExists(
 }
 
 /**
- * Сгенерировать .webp рядом с загруженным изображением и всеми его форматами
- * (thumbnail/small/medium/large). nginx отдаёт webp по Accept, jpg — fallback.
+ * Сгенерировать .avif и .webp рядом с загруженным изображением и всеми его
+ * форматами (thumbnail/small/medium/large). nginx выбирает формат по Accept:
+ * avif → webp → исходный jpg/png (см. conf.d/altai-perf.conf на сервере).
  * Ленивый require('sharp') и полный try/catch: сбой оптимизации никогда не
  * должен ронять загрузку файла в админке.
+ *
+ * Качество подобрано по замеру всей витрины (PSNR к оригиналу ≥ 38 дБ —
+ * граница, за которой разница на фотографии глазом не ловится): avif 52,
+ * webp 80. effort у avif занижен против разовой пакетной пережимки: обработчик
+ * ждут в админке, а выигрыш последних ступеней — единицы процентов.
  */
-interface UploadFileResult {
-  hash?: string;
-  ext?: string;
-  mime?: string;
-  formats?: Record<string, { hash?: string; ext?: string } | undefined>;
-}
-async function genWebpForUpload(
+async function genImageVariants(
   strapi: Core.Strapi,
   result: UploadFileResult | undefined,
 ): Promise<void> {
-  if (!result) return;
+  const names = imageTargets(result);
+  if (names.length === 0) return;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sharp = require('sharp') as typeof import('sharp');
@@ -147,21 +149,20 @@ async function genWebpForUpload(
     const fs = require('node:fs') as typeof import('node:fs');
     const dir = path.join(process.cwd(), 'public', 'uploads');
 
-    const names: string[] = [];
-    const add = (hash?: string, ext?: string) => {
-      if (hash && ext && /\.(jpe?g|png)$/i.test(ext)) names.push(hash + ext);
-    };
-    add(result.hash, result.ext);
-    for (const fmt of Object.values(result.formats ?? {})) add(fmt?.hash, fmt?.ext);
-
     for (const name of names) {
       const src = path.join(dir, name);
-      const out = src + '.webp';
-      if (!fs.existsSync(src) || fs.existsSync(out)) continue;
-      await sharp(src).webp({ quality: 80, effort: 5 }).toFile(out);
+      if (!fs.existsSync(src)) continue;
+      if (!fs.existsSync(src + '.avif')) {
+        await sharp(src)
+          .avif({ quality: 52, effort: 4, chromaSubsampling: '4:4:4' })
+          .toFile(src + '.avif');
+      }
+      if (!fs.existsSync(src + '.webp')) {
+        await sharp(src).webp({ quality: 80, effort: 5 }).toFile(src + '.webp');
+      }
     }
   } catch (e) {
-    strapi.log.warn(`[upload] webp не сгенерирован: ${(e as Error).message}`);
+    strapi.log.warn(`[upload] avif/webp не сгенерированы: ${(e as Error).message}`);
   }
 }
 
@@ -233,18 +234,19 @@ export default {
       },
     });
 
-    // WebP для загруженных картинок товаров (perf 11.08.2026). nginx отдаёт
-    // .webp по заголовку Accept — но файл должен существовать. Strapi по
-    // умолчанию генерит jpg/png форматы (thumbnail/small/medium/large); здесь
-    // рядом с каждым кладём .webp (−~58% веса). Для БУДУЩИХ товаров: загрузил
-    // фото — webp появился сам. Fail-safe: ошибка не ломает загрузку.
+    // AVIF/WebP для загруженных картинок товаров (perf 11.08.2026). nginx
+    // отдаёт лёгкий формат по заголовку Accept — но файл должен существовать.
+    // Strapi по умолчанию генерит только jpg/png форматы (thumbnail/small/
+    // medium/large); здесь рядом с каждым кладём .avif (−~60% веса) и .webp
+    // (запасной для Safari до 16). Для БУДУЩИХ товаров: загрузил фото —
+    // облегчённые версии появились сами. Fail-safe: ошибка не ломает загрузку.
     strapi.db.lifecycles.subscribe({
       models: ['plugin::upload.file'],
       async afterCreate(event) {
-        await genWebpForUpload(strapi, event.result);
+        await genImageVariants(strapi, event.result);
       },
       async afterUpdate(event) {
-        await genWebpForUpload(strapi, event.result);
+        await genImageVariants(strapi, event.result);
       },
     });
 

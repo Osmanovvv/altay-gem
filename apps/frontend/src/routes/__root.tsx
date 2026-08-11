@@ -10,6 +10,11 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+// Три шрифтовых файла первого экрана — забираем их URL из сборки (Vite вернёт
+// путь с хешем), чтобы предзагрузить (см. links в head ниже).
+import cormorantCyr600 from "@fontsource/cormorant-garamond/files/cormorant-garamond-cyrillic-600-normal.woff2?url";
+import golosCyr400 from "@fontsource/golos-text/files/golos-text-cyrillic-400-normal.woff2?url";
+import golosCyr600 from "@fontsource/golos-text/files/golos-text-cyrillic-600-normal.woff2?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/context/CartContext";
 import { SettingsProvider } from "@/context/SettingsContext";
@@ -151,6 +156,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
+      // Шрифты объявлены внутри CSS, поэтому браузер узнаёт о них только
+      // ПОСЛЕ загрузки и разбора таблицы стилей — лишний виток в критической
+      // цепочке (замер: css готов на 2369 мс, шрифты только на 2647 мс).
+      // Предзагрузка снимает этот виток: кириллические начертания заголовка и
+      // текста едут параллельно с CSS. Ровно три файла первого экрана — не
+      // все девять, иначе предзагрузка начнёт отбирать канал у картинки LCP.
+      // crossOrigin обязателен даже для своего домена: шрифты грузятся в
+      // режиме CORS, без него браузер скачает файл ВТОРОЙ раз.
+      ...[cormorantCyr600, golosCyr400, golosCyr600].map((href) => ({
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href,
+        crossOrigin: "anonymous",
+      })),
     ],
   }),
   shellComponent: RootShell,

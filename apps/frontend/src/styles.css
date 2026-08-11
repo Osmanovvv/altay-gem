@@ -6,16 +6,14 @@
 /* Self-hosted шрифты (@fontsource) вместо внешнего Google Fonts CDN.
    Каждый файл веса включает подмножества latin + latin-ext + cyrillic +
    cyrillic-ext через unicode-range, поэтому кириллица рендерится без
-   внешних запросов. Веса — те же, что были в прежнем Google-URL. */
-@import "@fontsource/unbounded/400.css";
-@import "@fontsource/unbounded/600.css";
-@import "@fontsource/unbounded/700.css";
-@import "@fontsource/unbounded/800.css";
-@import "@fontsource/unbounded/900.css";
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
+   внешних запросов.
+
+   Дизайн-система использует РОВНО ДВА семейства: --font-display (Cormorant
+   Garamond) и --font-body / --font-sans (Golos Text) — см. styles/theme.css.
+   Unbounded и Inter достались от первоначального шаблона и не упомянуты ни в
+   одном font-family: их @font-face только раздували таблицу стилей, которая
+   блокирует первую отрисовку (сами woff2 браузер не качал — ни один символ
+   ими не набирается). Убраны 11.08.2026; визуально ничего не меняется. */
 @import "@fontsource/cormorant-garamond/400.css";
 @import "@fontsource/cormorant-garamond/500.css";
 @import "@fontsource/cormorant-garamond/600.css";
