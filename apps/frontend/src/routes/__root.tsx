@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -7,21 +6,44 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 
+// CSS подключается ссылкой, а НЕ встраивается в HTML. Встраивание (?inline)
+// пробовали 11.08.2026, чтобы убрать 430 мс ожидания таблицы стилей, — стало
+// хуже: __root.tsx исполняется и на клиенте, поэтому те же 90 КБ текста Vite
+// положил ЕЩЁ И в стартовый js-бандл (93,7 → 109,3 КБ сжато). Экономия одного
+// запроса не окупает лишние 15 КБ кода, который браузер должен разобрать до
+// гидрации. Вернуть встраивание можно только через серверный модуль.
 import appCss from "../styles.css?url";
-// Три шрифтовых файла первого экрана — забираем их URL из сборки (Vite вернёт
-// путь с хешем), чтобы предзагрузить (см. links в head ниже).
-import cormorantCyr600 from "@fontsource/cormorant-garamond/files/cormorant-garamond-cyrillic-600-normal.woff2?url";
-import golosCyr400 from "@fontsource/golos-text/files/golos-text-cyrillic-400-normal.woff2?url";
-import golosCyr600 from "@fontsource/golos-text/files/golos-text-cyrillic-600-normal.woff2?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/context/CartContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { fetchCategories, fetchSettings, type ApiCategory, type ApiSettings } from "@/lib/api";
-import { Toaster } from "sonner";
+
+/**
+ * Всплывающие уведомления (sonner) грузятся ПОСЛЕ гидрации, а не вместе с
+ * витриной. Контейнер до первого уведомления не рисует ничего, но библиотека
+ * (~12 КБ сжато) лежала в стартовом бандле и удлиняла гидрацию — а на LCP
+ * главной сейчас влияет именно она: первый экран проявляется, когда отработал
+ * JS. Уведомления возникают только по действию покупателя (оформление заказа,
+ * копирование промокода) — к этому моменту контейнер давно смонтирован.
+ */
+function DeferredToaster() {
+  const [Toaster, setToaster] = useState<ComponentType<Record<string, unknown>> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void import("sonner").then((m) => {
+      if (alive) setToaster(() => m.Toaster as ComponentType<Record<string, unknown>>);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!Toaster) return null;
+  return <Toaster position="top-center" richColors closeButton />;
+}
 
 function NotFoundComponent() {
   // Глобальные шапка и подвал обязательны на ВСЕХ страницах, включая 404
@@ -106,7 +128,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+// Контекст роутера пуст: react-query из проекта убран (см. router.tsx).
+export const Route = createRootRouteWithContext<object>()({
   // Настройки сайта (контакты, точки, подвал) и категории (ссылки подвала) —
   // из админки (ТЗ 6.1); бэкенд недоступен -> null/[], компоненты — фолбэки.
   loader: async (): Promise<{
@@ -156,21 +179,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
-      // Шрифты объявлены внутри CSS, поэтому браузер узнаёт о них только
-      // ПОСЛЕ загрузки и разбора таблицы стилей — лишний виток в критической
-      // цепочке (замер: css готов на 2369 мс, шрифты только на 2647 мс).
-      // Предзагрузка снимает этот виток: кириллические начертания заголовка и
-      // текста едут параллельно с CSS. Ровно три файла первого экрана — не
-      // все девять, иначе предзагрузка начнёт отбирать канал у картинки LCP.
-      // crossOrigin обязателен даже для своего домена: шрифты грузятся в
-      // режиме CORS, без него браузер скачает файл ВТОРОЙ раз.
-      ...[cormorantCyr600, golosCyr400, golosCyr600].map((href) => ({
-        rel: "preload",
-        as: "font",
-        type: "font/woff2",
-        href,
-        crossOrigin: "anonymous",
-      })),
+      // Шрифты НЕ предзагружаем. Пробовали 11.08.2026 (три кириллических
+      // начертания первого экрана) — на замере стало хуже: страница упирается
+      // не в цепочку запросов, а в ширину канала (мобильный профиль PageSpeed
+      // — медленный 4G), и 43 КБ шрифтов с высоким приоритетом отбирали его у
+      // css и js, отодвигая первую отрисовку и гидрацию. У @fontsource стоит
+      // font-display: swap, поэтому текст рисуется сразу запасным шрифтом и
+      // ждать эти файлы всё равно не нужно.
     ],
   }),
   shellComponent: RootShell,
@@ -194,18 +209,15 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
   const { settings, categories } = Route.useLoaderData();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider value={settings} categories={categories}>
-        <CartProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-          <Toaster position="top-center" richColors closeButton />
-        </CartProvider>
-      </SettingsProvider>
-    </QueryClientProvider>
+    <SettingsProvider value={settings} categories={categories}>
+      <CartProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <DeferredToaster />
+      </CartProvider>
+    </SettingsProvider>
   );
 }
