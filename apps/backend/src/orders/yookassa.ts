@@ -51,6 +51,12 @@ export interface AuthoritativePayment {
   amountKopecks: number;
   /** metadata.order_id → наш id заказа (запасной путь связывания). */
   metadataOrderId: number | null;
+  /**
+   * Ссылка на страницу оплаты (только у pending-платежа). Нужна странице
+   * заказа: покупатель, вернувшийся с ЮKassa без оплаты, получает кнопку
+   * «Оплатить» вместо тупика — корзина к этому моменту уже очищена.
+   */
+  confirmationUrl: string | null;
 }
 
 /** Копейки → строка «рубли.копейки» с двумя знаками (формат ЮKassa). */
@@ -150,5 +156,18 @@ export function parsePaymentObject(body: unknown): AuthoritativePayment {
         ? raw
         : Number.NaN;
   const metadataOrderId = Number.isInteger(n) && n > 0 ? n : null;
-  return { id, status, paid: b.paid === true, amountKopecks, metadataOrderId };
+  const conf =
+    b.confirmation && typeof b.confirmation === 'object'
+      ? (b.confirmation as Record<string, unknown>)
+      : {};
+  const confirmationUrl =
+    typeof conf.confirmation_url === 'string' ? conf.confirmation_url : null;
+  return {
+    id,
+    status,
+    paid: b.paid === true,
+    amountKopecks,
+    metadataOrderId,
+    confirmationUrl,
+  };
 }

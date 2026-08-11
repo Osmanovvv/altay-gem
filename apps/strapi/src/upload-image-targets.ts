@@ -16,6 +16,20 @@ export interface UploadFileResult {
 
 const RASTER = /\.(jpe?g|png)$/i;
 
+/**
+ * Пора ли (пере)генерировать avif/webp-вариант.
+ *
+ * «Replace media» в Strapi сохраняет hash и URL, меняя содержимое файла, —
+ * проверка «вариант существует» оставила бы браузерам старую картинку
+ * навсегда. Сравниваем времена: вариант отсутствует или не моложе исходника —
+ * генерируем. Равенство тоже «генерировать»: грубость mtime дешевле риска
+ * отдать устаревший вариант.
+ */
+export function isVariantStale(srcMtimeMs: number, variantMtimeMs: number | null): boolean {
+  if (variantMtimeMs === null) return true;
+  return variantMtimeMs <= srcMtimeMs;
+}
+
 export function imageTargets(result: UploadFileResult | undefined): string[] {
   if (!result) return [];
   const names: string[] = [];

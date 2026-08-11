@@ -38,6 +38,38 @@ function slugsOf(value: unknown): string[] {
     .filter((slug): slug is string => typeof slug === "string" && slug.trim() !== "");
 }
 
+/**
+ * Обойти ВСЕ страницы каталога и собрать слаги товаров.
+ *
+ * Бэкенд не знает параметра limit (он молча отбрасывается) и отдаёт максимум
+ * perPage=48 за запрос — одна страница потеряла бы товары, как только их
+ * станет больше страницы. Число страниц берём из pagination.pageCount первого
+ * ответа; maxPages — страховка от разноса (50 × 48 = 2400 товаров, с запасом).
+ * Ошибка на очередной странице не выбрасывает собранное: карта с частью
+ * товаров полезнее пустой.
+ */
+export async function collectCatalogSlugs(
+  fetchPage: (page: number) => Promise<unknown>,
+  maxPages = 50,
+): Promise<string[]> {
+  const slugs: string[] = [];
+  let pageCount = 1;
+  for (let page = 1; page <= Math.min(pageCount, maxPages); page++) {
+    let data: unknown;
+    try {
+      data = await fetchPage(page);
+    } catch {
+      break;
+    }
+    slugs.push(...slugsOf(data));
+    const pc = (data as { pagination?: { pageCount?: unknown } })?.pagination?.pageCount;
+    if (page === 1) {
+      if (typeof pc === "number" && Number.isInteger(pc) && pc > 0) pageCount = pc;
+    }
+  }
+  return slugs;
+}
+
 export async function renderSitemap(request: Request): Promise<Response> {
   const siteUrl = siteUrlFrom(request);
   // Поисковый робот ждать не будет, да и держать SSR-процесс незачем.
@@ -48,10 +80,12 @@ export async function renderSitemap(request: Request): Promise<Response> {
   let promoSlugs: string[] = [];
   try {
     const [catalog, promos] = await Promise.all([
-      fetchJson("/catalog?limit=1000", controller.signal),
+      collectCatalogSlugs((page) =>
+        fetchJson(`/catalog?perPage=48&page=${page}`, controller.signal),
+      ),
       fetchJson("/promos", controller.signal),
     ]);
-    productSlugs = slugsOf(catalog);
+    productSlugs = catalog;
     promoSlugs = slugsOf(promos);
   } catch (error) {
     // Отдаём урезанную карту: пустой sitemap лучше пятисотки в панели вебмастера.

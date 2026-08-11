@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -177,6 +178,13 @@ export class PaymentService {
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       this.log.error(`ЮKassa вернула ${res.status} на чек: ${text.slice(0, 300)}`);
+      // Тип ошибки кодирует ИЗВЕСТНОСТЬ исхода — от неё зависит судьба
+      // захвата фискализации (fiscalizeOrder): 4xx — чек точно НЕ создан,
+      // захват можно отпускать сразу; 5xx — ЮKassa могла дообработать запрос
+      // и создать чек, снятие захвата открыло бы дорогу второму чеку.
+      if (res.status >= 400 && res.status < 500) {
+        throw new BadRequestException('ЮKassa отклонила чек — проверьте состав');
+      }
       throw new ServiceUnavailableException('Не удалось отправить чек');
     }
     const json = (await res.json()) as Record<string, unknown>;

@@ -4,6 +4,7 @@ import {
   exportIsFresh,
   fileQtyApplies,
   msUntilDailyRun,
+  rowJudgeableByExport,
 } from './reconcile';
 
 /**
@@ -45,6 +46,30 @@ describe('fileQtyApplies', () => {
  * Поэтому протухший файл не применяем вовсе: пропуск + алерт лучше тихой
  * порчи остатков (fail-safe, как archivalIsSafe для неполного файла).
  */
+describe('rowJudgeableByExport', () => {
+  const exportAt = Date.parse('2026-08-10T02:00:00Z');
+
+  it('строка существовала до снятия снимка → отсутствие в нём значимо, архивировать можно', () => {
+    expect(rowJudgeableByExport(Date.parse('2026-08-09T10:00:00Z'), exportAt)).toBe(true);
+  });
+
+  it('строка создана ПОЗЖЕ снятия снимка (пуш новой номенклатуры) → снимок о ней ничего не знает', () => {
+    // Ночная сверка по файлу, снятому в 02:00, не должна архивировать товар,
+    // который Эвотор допушил в 03:00, — иначе новинка молча пропадает с
+    // витрины до следующего пуша.
+    expect(rowJudgeableByExport(Date.parse('2026-08-10T03:00:00Z'), exportAt)).toBe(false);
+  });
+
+  it('время снимка неизвестно (ручной CLI-прогон) → прежнее поведение, судим все строки', () => {
+    expect(rowJudgeableByExport(Date.parse('2026-08-10T03:00:00Z'), null)).toBe(true);
+    expect(rowJudgeableByExport(Date.parse('2026-08-10T03:00:00Z'), undefined)).toBe(true);
+  });
+
+  it('создана ровно в момент снятия → не судим (могла не успеть в снимок)', () => {
+    expect(rowJudgeableByExport(exportAt, exportAt)).toBe(false);
+  });
+});
+
 describe('exportIsFresh', () => {
   const H = 3_600_000;
   const now = Date.UTC(2026, 6, 16, 3, 30); // ночной запуск сверки

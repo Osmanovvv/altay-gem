@@ -112,6 +112,28 @@ function OrderPage() {
               {order.instruction}
             </p>
 
+            {/* Возврат со страницы ЮKassa без оплаты — раньше тупик: заказ
+                «Ожидает оплаты», корзина уже пуста, платить нечем. Бэкенд
+                отдаёт живую ссылку pending-платежа — даём продолжить оплату. */}
+            {order.status === "awaiting_payment" && order.paymentUrl && (
+              <a
+                href={order.paymentUrl}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full sm:w-auto"
+                style={{
+                  backgroundColor: "var(--color-accent)",
+                  color: "var(--color-bg-dark)",
+                  fontFamily: "var(--font-body)",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  padding: "14px 28px",
+                  minHeight: 48,
+                  textDecoration: "none",
+                }}
+              >
+                Оплатить заказ
+              </a>
+            )}
+
             <h2
               className="mt-8 flex items-center gap-2"
               style={{

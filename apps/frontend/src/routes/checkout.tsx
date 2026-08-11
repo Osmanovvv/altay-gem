@@ -316,6 +316,13 @@ function CheckoutPage() {
       toast.error(quoteError);
       return;
     }
+    // Расчёт ещё в полёте (quote и quoteError оба пусты): быстрый клик по
+    // «Далее» проскакивал на подтверждение с прочерком вместо доставки и
+    // с непроверенным наличием (stockProblems приходят тем же ответом).
+    if (step === 1 && form.delivery && !quote && !quoteError) {
+      toast("Считаем доставку — одну секунду");
+      return;
+    }
     if (step === 1 && requireEmailForOnline()) return;
     setStep((s) => (s < 2 ? ((s + 1) as Step) : s));
   }

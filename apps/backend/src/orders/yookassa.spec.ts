@@ -121,7 +121,29 @@ describe('parsePaymentObject (шаг 2: авторитетный платёж и
       paid: true,
       amountKopecks: 26500,
       metadataOrderId: 45,
+      confirmationUrl: null,
     });
+  });
+
+  it('pending-платёж несёт confirmation_url — покупателю можно продолжить оплату', () => {
+    // Возврат с ЮKassa без оплаты: страница заказа перезапрашивает платёж и
+    // по этой ссылке предлагает «Оплатить» — иначе тупик (корзина уже пуста).
+    const pending = {
+      ...full,
+      status: 'pending',
+      paid: false,
+      confirmation: { type: 'redirect', confirmation_url: 'https://yoomoney.ru/checkout/payments/v2/contract?orderId=pay_1' },
+    };
+    expect(parsePaymentObject(pending).confirmationUrl).toBe(
+      'https://yoomoney.ru/checkout/payments/v2/contract?orderId=pay_1',
+    );
+  });
+
+  it('битый confirmation (не объект / не строка) → confirmationUrl=null, не бросает', () => {
+    expect(parsePaymentObject({ ...full, confirmation: 'x' }).confirmationUrl).toBeNull();
+    expect(
+      parsePaymentObject({ ...full, confirmation: { confirmation_url: 42 } }).confirmationUrl,
+    ).toBeNull();
   });
 
   it('копейки из value: точный разбор без плавающего хвоста', () => {

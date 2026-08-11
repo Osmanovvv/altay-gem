@@ -92,6 +92,23 @@ export function fileQtyApplies(
   return stockAsofMs === null || stockAsofMs <= exportAtMs;
 }
 
+/**
+ * Может ли снимок судить о строке реплики по её ОТСУТСТВИЮ в нём.
+ *
+ * Товар, созданный ПОЗЖЕ момента снятия снимка (пуш новой номенклатуры от
+ * Эвотора), в снимке отсутствует не потому, что удалён, — снимок о нём просто
+ * ничего не знает. Архивировать такую строку нельзя: новинка молча пропала бы
+ * с витрины до следующего пуша. Без времени снимка (ручной CLI-прогон) —
+ * прежнее поведение: судим все строки.
+ */
+export function rowJudgeableByExport(
+  createdAtMs: number,
+  exportAtMs: number | null | undefined,
+): boolean {
+  if (exportAtMs === null || exportAtMs === undefined) return true;
+  return createdAtMs < exportAtMs;
+}
+
 /** Текущее состояние товара в реплике (для сравнения с выгрузкой). */
 interface ReplicaSnapshot {
   priceKopecks: number;
@@ -254,9 +271,18 @@ export async function reconcileStore(
             isArchived: false, // вернулся в выгрузку — снимаем архив
             matchKey: p.matchKey,
             raw: p.raw,
-            // Цену/«В продаже» перезаписываем авторитетно, НО пустые значения
-            // выгрузки не затирают текущее (дыра в отчёте ≠ изменение).
-            ...(p.priceKopecks !== null && { priceKopecks: p.priceKopecks }),
+            // Цену/«В продаже» перезаписываем, НО: пустые значения выгрузки
+            // не затирают текущее (дыра в отчёте ≠ изменение), а при
+            // известном времени снимка действует ТОТ ЖЕ гард свежести, что у
+            // остатка: файл, снятый ДО последнего применённого снимка, уже
+            // мог устареть (пуш номенклатуры сменил цену позже) — не даём
+            // недельному файлу откатить сегодняшнюю цену (аудит 11.08.2026).
+            ...(p.priceKopecks !== null &&
+              (exportAtIso
+                ? {
+                    priceKopecks: sql`case when ${freshSql} then ${p.priceKopecks} else ${evotorProducts.priceKopecks} end`,
+                  }
+                : { priceKopecks: p.priceKopecks })),
             // Остаток: при известном времени снимка — SQL-guard по свежести
             // (см. freshSql выше); без него (CLI-импорт) файл авторитетен.
             ...(p.quantity !== null &&
@@ -266,7 +292,12 @@ export async function reconcileStore(
                     stockAsof: sql`case when ${freshSql} then ${exportAtIso}::timestamptz else ${evotorProducts.stockAsof} end`,
                   }
                 : { quantity: String(p.quantity) })),
-            ...(p.allowToSell !== null && { allowToSell: p.allowToSell }),
+            ...(p.allowToSell !== null &&
+              (exportAtIso
+                ? {
+                    allowToSell: sql`case when ${freshSql} then ${p.allowToSell} else ${evotorProducts.allowToSell} end`,
+                  }
+                : { allowToSell: p.allowToSell })),
             syncedAt: sql`now()`,
             updatedAt: sql`now()`,
           },
@@ -335,6 +366,12 @@ export async function reconcileStore(
           eq(evotorProducts.storeId, storeId),
           eq(evotorProducts.isArchived, false),
           notInArray(evotorProducts.evotorUuid, parsedUuids),
+          // SQL-зеркало rowJudgeableByExport: строку, созданную ПОЗЖЕ снятия
+          // снимка (пуш новой номенклатуры), по отсутствию в нём судить
+          // нельзя — снимок о ней ничего не знает.
+          ...(exportAtIso
+            ? [sql`${evotorProducts.createdAt} < ${exportAtIso}::timestamptz`]
+            : []),
         ),
       )
       .returning({ uuid: evotorProducts.evotorUuid });

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentService } from './payment.service';
 
@@ -117,6 +118,7 @@ describe('PaymentService.getPayment (шаг 2: авторитетный пере
       paid: true,
       amountKopecks: 26500,
       metadataOrderId: 45,
+      confirmationUrl: null,
     });
     expect(captured!.url).toContain('/payments/pay_1');
     expect((captured!.opts.method ?? 'GET')).toBe('GET');
@@ -194,13 +196,37 @@ describe('PaymentService.createReceipt (шаг 4: отложенный чек PO
     expect(JSON.parse(captured!.opts.body as string)).toEqual(receipt);
   });
 
-  it('не-2xx → ServiceUnavailable (кассир повторит фискализацию)', async () => {
+  // Разделение ошибок по ИЗВЕСТНОСТИ исхода — от него зависит, снимет ли
+  // fiscalizeOrder захват. 4xx: ЮKassa чек ОТВЕРГЛА, повтор безопасен.
+  // 5xx/сеть/таймаут: чек МОГ создаться (ЮKassa дообработает запрос после
+  // нашего обрыва) — снятие захвата открывало дорогу ВТОРОМУ чеку по тому же
+  // платежу: двойная выручка в ОФД и повторная передача кодов маркировки.
+  it('4xx на чек → BadRequest: исход известен (чек не создан), захват можно снимать', async () => {
     globalThis.fetch = (async () =>
       ({ ok: false, status: 400, text: async () => 'bad' }) as Response) as typeof fetch;
     const s = new PaymentService(
       cfg({ YOOKASSA_SHOP_ID: '111', YOOKASSA_SECRET_KEY: 'sec' }),
     );
-    await expect(s.createReceipt(45, receipt)).rejects.toThrow();
+    await expect(s.createReceipt(45, receipt)).rejects.toThrow(BadRequestException);
+  });
+
+  it('5xx на чек → ServiceUnavailable: исход НЕИЗВЕСТЕН, захват держим', async () => {
+    globalThis.fetch = (async () =>
+      ({ ok: false, status: 502, text: async () => 'gw' }) as Response) as typeof fetch;
+    const s = new PaymentService(
+      cfg({ YOOKASSA_SHOP_ID: '111', YOOKASSA_SECRET_KEY: 'sec' }),
+    );
+    await expect(s.createReceipt(45, receipt)).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('сеть оборвалась на чеке → ServiceUnavailable: исход НЕИЗВЕСТЕН', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('timeout');
+    }) as typeof fetch;
+    const s = new PaymentService(
+      cfg({ YOOKASSA_SHOP_ID: '111', YOOKASSA_SECRET_KEY: 'sec' }),
+    );
+    await expect(s.createReceipt(45, receipt)).rejects.toThrow(ServiceUnavailableException);
   });
 
   it('ответ без id → ошибка, а не тихий undefined', async () => {

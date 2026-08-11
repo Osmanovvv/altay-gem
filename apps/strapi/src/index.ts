@@ -3,7 +3,7 @@ import { errors } from '@strapi/utils';
 import path from 'node:path';
 
 import { applyFieldHints } from './field-hints';
-import { imageTargets, type UploadFileResult } from './upload-image-targets';
+import { imageTargets, isVariantStale, type UploadFileResult } from './upload-image-targets';
 import { oldPriceProblem } from './validate-old-price';
 
 interface HeroLifecycleEvent {
@@ -91,6 +91,13 @@ async function assertEvotorUuidExists(
   data: ProductData | undefined,
 ): Promise<void> {
   const uuid = data?.evotorUuid?.trim();
+  // Сохраняем ОБРЕЗАННОЕ значение. Иначе ловушка: валидация проверяет trim,
+  // а в базу уходит строка с хвостовым пробелом — проверка проходит, но
+  // каталог по точному совпадению uuid товар не находит, и он молча
+  // пропадает с витрины.
+  if (data && typeof data.evotorUuid === 'string' && data.evotorUuid !== uuid) {
+    data.evotorUuid = uuid;
+  }
   const client = getBridge(strapi);
   if (!uuid || !client) return;
   // Массу порции передаём, чтобы бэкенд вернул цену ТОЙ ЖЕ порции, что увидит
@@ -149,20 +156,60 @@ async function genImageVariants(
     const fs = require('node:fs') as typeof import('node:fs');
     const dir = path.join(process.cwd(), 'public', 'uploads');
 
+    const mtimeOf = (p: string): number | null => {
+      try {
+        return fs.statSync(p).mtimeMs;
+      } catch {
+        return null;
+      }
+    };
     for (const name of names) {
       const src = path.join(dir, name);
-      if (!fs.existsSync(src)) continue;
-      if (!fs.existsSync(src + '.avif')) {
+      const srcMtime = mtimeOf(src);
+      if (srcMtime === null) continue;
+      // Сравнение по mtime, а не existsSync: «Replace media» сохраняет hash
+      // и URL, меняя содержимое, — существующий вариант может быть от
+      // ПРЕЖНЕЙ картинки, и его надо пережать.
+      if (isVariantStale(srcMtime, mtimeOf(src + '.avif'))) {
         await sharp(src)
           .avif({ quality: 52, effort: 4, chromaSubsampling: '4:4:4' })
           .toFile(src + '.avif');
       }
-      if (!fs.existsSync(src + '.webp')) {
+      if (isVariantStale(srcMtime, mtimeOf(src + '.webp'))) {
         await sharp(src).webp({ quality: 80, effort: 5 }).toFile(src + '.webp');
       }
     }
   } catch (e) {
     strapi.log.warn(`[upload] avif/webp не сгенерированы: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Убрать avif/webp-варианты удалённого файла. Сам jpg/png Strapi удаляет
+ * сам, а про наши варианты не знает: без этого хука «удалённое» фото
+ * продолжает публично отдаваться браузерам с поддержкой avif/webp
+ * (nginx try_files находит вариант раньше, чем убеждается в 404).
+ */
+function removeImageVariants(strapi: Core.Strapi, result: UploadFileResult | undefined): void {
+  const names = imageTargets(result);
+  if (names.length === 0) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path') as typeof import('node:path');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('node:fs') as typeof import('node:fs');
+    const dir = path.join(process.cwd(), 'public', 'uploads');
+    for (const name of names) {
+      for (const ext of ['.avif', '.webp']) {
+        try {
+          fs.unlinkSync(path.join(dir, name + ext));
+        } catch {
+          /* варианта не было — и не надо */
+        }
+      }
+    }
+  } catch (e) {
+    strapi.log.warn(`[upload] варианты не удалены: ${(e as Error).message}`);
   }
 }
 
@@ -247,6 +294,9 @@ export default {
       },
       async afterUpdate(event) {
         await genImageVariants(strapi, event.result);
+      },
+      afterDelete(event) {
+        removeImageVariants(strapi, event.result as UploadFileResult | undefined);
       },
     });
 

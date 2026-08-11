@@ -118,7 +118,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!cancelled) {
+          // Сбой сети: код снимаем ЦЕЛИКОМ. Оставить promoCode со скидкой 0 —
+          // значит показать «Промокод применён» (поле ввода прячется), а в
+          // итоге посчитать полную цену: покупатель уверен в скидке, которой
+          // нет. Честнее вернуть поле ввода с сообщением — пусть повторит.
           setPromoDiscountRub(0);
+          setPromoCode(null);
           setPromoError("Не удалось проверить промокод — попробуйте ещё раз");
         }
       })
@@ -134,8 +139,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((cur) => {
       const existing = cur.find((i) => i.product.id === product.id);
       if (existing) {
+        // Снапшот товара тоже обновляем: карточка только что отдала свежие
+        // цену/наличие. Иначе после отказа оформления price_changed корзину
+        // нельзя было починить повторным добавлением — в ней навсегда
+        // оставалась старая цена, помогало только удалить позицию.
         return cur.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i,
+          i.product.id === product.id ? { product, quantity: i.quantity + qty } : i,
         );
       }
       return [...cur, { product, quantity: qty }];

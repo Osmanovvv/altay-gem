@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { and, desc, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { CatalogService, ProductInternal } from '../catalog/catalog.service';
 import { orderableUnits, safePortionMassG } from '../catalog/stock';
 import { DB, type Database } from '../db/database.module';
@@ -1055,9 +1055,23 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       .select()
       .from(orderItems)
       .where(eq(orderItems.orderId, id));
+    // Возврат со страницы ЮKassa БЕЗ оплаты — раньше тупик: «Ожидает оплаты»,
+    // а платить нечем (корзина очищена при создании заказа, ссылки нет).
+    // Отдаём живую ссылку pending-платежа — фронт покажет кнопку «Оплатить».
+    // Любой сбой эквайера не роняет страницу статуса: просто без кнопки.
+    let paymentUrl: string | null = null;
+    if (order.status === 'awaiting_payment' && order.paymentExternalId) {
+      try {
+        const p = await this.payment.getPayment(order.paymentExternalId);
+        if (p?.status === 'pending') paymentUrl = p.confirmationUrl;
+      } catch {
+        /* страница статуса важнее ссылки */
+      }
+    }
     return {
       orderNumber: order.orderNumber,
       status: order.status,
+      paymentUrl,
       createdAt: order.createdAt,
       deliveryMethod: order.deliveryMethod,
       deliveryAddress: order.deliveryAddress,
@@ -1531,10 +1545,23 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       );
       return created;
     } catch (err) {
-      // ЛЮБАЯ ошибка снимает захват, чтобы кассир мог повторить (иначе заказ
-      // «заморожен» на 5 минут stale-порога). Повторный release безопасен
-      // (guard по claim), потерянный ответ страхует findReceiptByPayment.
-      await release();
+      // Захват снимаем ТОЛЬКО при известном исходе (4xx, ошибка сборки чека,
+      // «не настроена») — кассир сразу повторит. ServiceUnavailable — исход
+      // НЕИЗВЕСТЕН: наш клиент оборвал запрос по таймауту, но ЮKassa могла
+      // дообработать его и создать чек. Снять захват сейчас = пустить
+      // немедленный повтор с НОВОЙ солью ключа идемпотентности, пока первый
+      // чек ещё не виден в GET /receipts, — по одному платежу выбились бы ДВА
+      // чека (двойная выручка в ОФД и повторная передача кодов маркировки).
+      // Держим маркер: stale-порог 5 минут (resolveExistingReceipt) отвечает
+      // повторным попыткам 409, за это время чек либо материализуется (его
+      // найдёт findReceiptByPayment), либо его точно нет.
+      if (!(err instanceof ServiceUnavailableException)) {
+        await release();
+      } else {
+        this.log.warn(
+          `заказ #${orderId}: исход отправки чека неизвестен — держим захват 5 минут против двойного чека`,
+        );
+      }
       throw err;
     }
   }
@@ -1674,6 +1701,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // Пишем с guard'ом status=expectedFrom прямо в UPDATE; 0 обновлённых строк =
     // гонку проиграли. Резервы трогаем ТОЛЬКО при реально применённом переходе.
     const expectedFrom = cur.status;
+    let resurrectedExpired = false;
     const applied = await this.db.transaction(async (tx) => {
       const updated = await tx
         .update(orders)
@@ -1706,6 +1734,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         // 30 минут от СОЗДАНИЯ, и последнюю единицу оплаченного заказа мог
         // выкупить второй покупатель (находка финального аудита 11.08.2026).
         // Оплачен → резерв бессрочный, до released/committed по циклу заказа.
+        //
+        // Живые (не истёкшие) резервы продлеваем безусловно. Резерв, чей срок
+        // УЖЕ прошёл (вебхук пришёл позже TTL), — отдельный случай: пока он
+        // был невидим для расчётов, товар мог зарезервировать другой заказ.
+        // Молча воскресить = молча раздать одну единицу дважды. Воскрешаем
+        // (чтобы витрина перестала продавать то, чего уже нет), но шлём алерт:
+        // владелец сверяет остаток руками (находка аудита 11.08.2026).
         await tx
           .update(stockReservations)
           .set({ expiresAt: null, updatedAt: sql`now()` })
@@ -1713,8 +1748,24 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             and(
               eq(stockReservations.orderId, id),
               eq(stockReservations.status, 'active'),
+              or(
+                isNull(stockReservations.expiresAt),
+                gt(stockReservations.expiresAt, sql`now()`),
+              ),
             ),
           );
+        const stale = await tx
+          .update(stockReservations)
+          .set({ expiresAt: null, updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(stockReservations.orderId, id),
+              eq(stockReservations.status, 'active'),
+              sql`${stockReservations.expiresAt} <= now()`,
+            ),
+          )
+          .returning({ id: stockReservations.id });
+        resurrectedExpired = stale.length > 0;
       }
       if (status === 'cancelled') {
         await tx
@@ -1764,6 +1815,21 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       });
     }
     await this.catalog.invalidate();
+    if (resurrectedExpired) {
+      // Оплата пришла ПОЗЖЕ срока резерва: пока он был истёкшим, товар был
+      // виден как свободный, и его мог занять другой заказ. Витрину мы уже
+      // закрыли (резерв воскрешён), но физического товара может не хватить —
+      // это решает человек, молчать нельзя.
+      this.log.warn(
+        `заказ #${id}: оплата позже срока резерва — резерв воскрешён, возможен недостаток остатка`,
+      );
+      await this.telegram
+        .alert(
+          `Заказ #${id}: оплата пришла позже срока резерва`,
+          'Резерв восстановлен, но в окне истечения товар мог купить другой заказ. Сверьте остаток по позициям заказа руками.',
+        )
+        .catch(() => undefined);
+    }
     this.log.log(`заказ #${id}: статус → ${status}`);
     return { id, status };
   }

@@ -199,6 +199,8 @@ export interface ApiOrderStatus {
   totals: ApiOrderCreated["totals"];
   items: Array<{ name: string; quantity: number; unit: string; priceRub: number; sumRub: number }>;
   instruction: string;
+  /** Живая ссылка оплаты pending-платежа: вернулся с ЮKassa без оплаты — можно продолжить. */
+  paymentUrl?: string | null;
 }
 
 /** Ошибка API с телом ответа (коды ORDER_VALIDATION, PROMO_INVALID и т.п.). */

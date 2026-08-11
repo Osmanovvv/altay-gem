@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { imageTargets } from './upload-image-targets';
+import { imageTargets, isVariantStale } from './upload-image-targets';
 
 /**
  * Какие файлы загруженной картинки надо пережать в avif/webp.
@@ -53,5 +53,29 @@ describe('imageTargets', () => {
     const [name] = imageTargets({ hash: 'photo_abc', ext: '.jpg' });
     expect(`${name}.avif`).toBe('photo_abc.jpg.avif');
     expect(`${name}.webp`).toBe('photo_abc.jpg.webp');
+  });
+});
+
+/**
+ * «Replace media» в Strapi сохраняет тот же hash и URL, меняя СОДЕРЖИМОЕ
+ * файла. Гейт «вариант уже существует — пропустить» в этом случае навсегда
+ * оставляет браузерам старую картинку в avif/webp. Правильный признак —
+ * времена файлов: исходник моложе варианта → вариант устарел.
+ */
+describe('isVariantStale', () => {
+  test('варианта нет — генерировать', () => {
+    expect(isVariantStale(1000, null)).toBe(true);
+  });
+
+  test('вариант старее исходника (Replace media) — перегенерировать', () => {
+    expect(isVariantStale(2000, 1000)).toBe(true);
+  });
+
+  test('вариант свежее исходника — не трогать', () => {
+    expect(isVariantStale(1000, 2000)).toBe(false);
+  });
+
+  test('одинаковое время (грубые файловые системы) — перегенерировать, это дёшево', () => {
+    expect(isVariantStale(1500, 1500)).toBe(true);
   });
 });

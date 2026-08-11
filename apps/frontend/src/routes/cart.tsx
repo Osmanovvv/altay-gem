@@ -145,6 +145,27 @@ function CartPage() {
                     />
                   ))}
                 </AnimatePresence>
+
+                {/* Промокод на мобильном: Summary скрыта (hidden lg:block),
+                    другого поля ввода нет — карточка в том же стиле. */}
+                <li className="list-none lg:hidden">
+                  <div
+                    style={{
+                      backgroundColor: "#fffdf7",
+                      border: "1px solid rgba(31,26,14,0.06)",
+                      borderRadius: 20,
+                      padding: 16,
+                      boxShadow: "var(--shadow-card)",
+                    }}
+                  >
+                    <PromoField
+                      promoCode={promoCode}
+                      promoError={promoError}
+                      onApplyPromo={applyPromoCode}
+                      onClearPromo={clearPromoCode}
+                    />
+                  </div>
+                </li>
               </ul>
 
               {/* Summary desktop */}
@@ -547,6 +568,109 @@ function QtyCounter({
   );
 }
 
+/**
+ * Поле промокода. Вынесено из Summary, потому что Summary рендерится только
+ * на десктопе (hidden lg:block) — и до 11.08.2026 покупатель с телефона
+ * ФИЗИЧЕСКИ не мог ввести промокод: единственный input жил в скрытом блоке,
+ * при живой странице акции «скопируйте ALTAI10». Теперь тот же блок
+ * рендерится и в мобильной раскладке корзины.
+ */
+function PromoField({
+  promoCode,
+  promoError,
+  onApplyPromo,
+  onClearPromo,
+}: {
+  promoCode: string | null;
+  promoError: string | null;
+  onApplyPromo: (code: string) => void;
+  onClearPromo: () => void;
+}) {
+  const [promoInput, setPromoInput] = useState("");
+  return promoCode ? (
+    <div
+      className="flex items-center justify-between rounded-xl"
+      style={{
+        backgroundColor: "rgba(59,110,74,0.08)",
+        padding: "10px 14px",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--font-body)",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--color-success)",
+        }}
+      >
+        Промокод {promoCode} применён
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          onClearPromo();
+          setPromoInput("");
+        }}
+        aria-label="Убрать промокод"
+        className="rounded-full transition-colors hover:bg-black/5"
+        style={{ width: 28, height: 28, color: "var(--color-text-muted)" }}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  ) : (
+    <>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={promoInput}
+          onChange={(e) => setPromoInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onApplyPromo(promoInput);
+          }}
+          placeholder="Промокод"
+          className="w-full rounded-full border px-4 outline-none transition-colors focus:border-[color:var(--color-accent)]"
+          style={{
+            borderColor: "rgba(31,26,14,0.15)",
+            fontFamily: "var(--font-body)",
+            fontSize: 14,
+            minHeight: 40,
+            backgroundColor: "#fff",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => onApplyPromo(promoInput)}
+          className="shrink-0 rounded-full transition-colors"
+          style={{
+            backgroundColor: "var(--color-bg-dark)",
+            color: "var(--color-accent)",
+            fontFamily: "var(--font-body)",
+            fontWeight: 600,
+            fontSize: 13,
+            padding: "0 16px",
+            minHeight: 40,
+          }}
+        >
+          Применить
+        </button>
+      </div>
+      {promoError && (
+        <p
+          className="mt-1.5"
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: 12,
+            color: "var(--color-error)",
+          }}
+        >
+          {promoError}
+        </p>
+      )}
+    </>
+  );
+}
+
 function Summary({
   total,
   discount,
@@ -615,88 +739,12 @@ function Summary({
 
       {/* Промокод */}
       <div className="mt-3">
-        {promoCode ? (
-          <div
-            className="flex items-center justify-between rounded-xl"
-            style={{
-              backgroundColor: "rgba(59,110,74,0.08)",
-              padding: "10px 14px",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-body)",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--color-success)",
-              }}
-            >
-              Промокод {promoCode} применён
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                onClearPromo();
-                setPromoInput("");
-              }}
-              aria-label="Убрать промокод"
-              className="rounded-full transition-colors hover:bg-black/5"
-              style={{ width: 28, height: 28, color: "var(--color-text-muted)" }}
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={promoInput}
-                onChange={(e) => setPromoInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onApplyPromo(promoInput);
-                }}
-                placeholder="Промокод"
-                className="w-full rounded-full border px-4 outline-none transition-colors focus:border-[color:var(--color-accent)]"
-                style={{
-                  borderColor: "rgba(31,26,14,0.15)",
-                  fontFamily: "var(--font-body)",
-                  fontSize: 14,
-                  minHeight: 40,
-                  backgroundColor: "#fff",
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => onApplyPromo(promoInput)}
-                className="shrink-0 rounded-full transition-colors"
-                style={{
-                  backgroundColor: "var(--color-bg-dark)",
-                  color: "var(--color-accent)",
-                  fontFamily: "var(--font-body)",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  padding: "0 16px",
-                  minHeight: 40,
-                }}
-              >
-                Применить
-              </button>
-            </div>
-            {promoError && (
-              <p
-                className="mt-1.5"
-                style={{
-                  fontFamily: "var(--font-body)",
-                  fontSize: 12,
-                  color: "var(--color-error)",
-                }}
-              >
-                {promoError}
-              </p>
-            )}
-          </>
-        )}
+        <PromoField
+          promoCode={promoCode}
+          promoError={promoError}
+          onApplyPromo={onApplyPromo}
+          onClearPromo={onClearPromo}
+        />
       </div>
 
       <hr style={{ borderColor: "rgba(31,26,14,0.08)", margin: "16px 0" }} />
