@@ -62,7 +62,9 @@ export class PromocodesService {
   async validate(
     code: string,
     items: Array<{ id: string; quantity: number }>,
-  ): Promise<PromoResult & { unknownItems?: string[] }> {
+  ): Promise<
+    PromoResult & { unknownItems?: string[]; usageLimit?: number | null }
+  > {
     const normalized = code.trim();
     if (!normalized) return reject('not_found');
 
@@ -88,6 +90,10 @@ export class PromocodesService {
       used,
       new Date(),
     );
-    return unknown.length ? { ...result, unknownItems: unknown } : result;
+    // usageLimit отдаём наружу: создание заказа перепроверяет лимит УЖЕ в
+    // транзакции под advisory-локом — счётчик здесь читается вне её, и два
+    // одновременных заказа на границе лимита иначе оба проходили бы.
+    const withLimit = { ...result, usageLimit: promo.usageLimit ?? null };
+    return unknown.length ? { ...withLimit, unknownItems: unknown } : withLimit;
   }
 }

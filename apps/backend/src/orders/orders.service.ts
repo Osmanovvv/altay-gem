@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { CatalogService, ProductInternal } from '../catalog/catalog.service';
 import { orderableUnits, safePortionMassG } from '../catalog/stock';
 import { DB, type Database } from '../db/database.module';
@@ -26,7 +26,7 @@ import {
   webhookEvents,
 } from '../db/schema';
 import { TelegramService } from '../notifications/telegram.service';
-import { isDiscountEligible } from '../promocodes/discount';
+import { isDiscountEligible, PROMO_MESSAGES } from '../promocodes/discount';
 import { PromocodesService } from '../promocodes/promocodes.service';
 import { idempotencyDecision } from './idempotency';
 import {
@@ -211,6 +211,39 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         )
         .catch(() => undefined);
     }
+    // Страховка №3: НДС по умолчанию — «Без НДС» (1), а у заказчицы 5% (7,
+    // сверено с кассами Эвотора 10.08.2026). Пересозданный без YOOKASSA_VAT_CODE
+    // .env молча фискализировал бы ВСЕ чеки с неверной ставкой — это уже не
+    // упавший платёж, а неверные данные в налоговой.
+    if (
+      this.payment.enabled &&
+      this.receiptConfig &&
+      config.get('YOOKASSA_VAT_CODE') === undefined
+    ) {
+      this.log.error(
+        'YOOKASSA_VAT_CODE не задан — чеки уйдут со ставкой по умолчанию «Без НДС», а у заказчицы НДС 5% (vat_code=7). Задайте явно в .env!',
+      );
+      void this.telegram
+        .alert(
+          'Опасная конфигурация чеков',
+          'YOOKASSA_VAT_CODE не задан: фискальные чеки уходят «Без НДС» вместо НДС 5%. Проверьте .env.',
+        )
+        .catch(() => undefined);
+    }
+    // Страховка №4: без PUBLIC_SITE_URL return_url платежа получается
+    // относительным — ЮKassa отклонит каждый онлайн-платёж уже ПОСЛЕ создания
+    // заказа и резерва.
+    if (this.payment.enabled && !this.siteUrl) {
+      this.log.error(
+        'YOOKASSA_SHOP_ID задан, а PUBLIC_SITE_URL пуст: return_url будет невалидным, ЮKassa отклонит каждый платёж. Проверьте .env!',
+      );
+      void this.telegram
+        .alert(
+          'Опасная конфигурация оплаты',
+          'Эквайринг включён, а PUBLIC_SITE_URL не задан — онлайн-оплаты будут падать. Проверьте .env.',
+        )
+        .catch(() => undefined);
+    }
   }
 
   // ---------- создание заказа (ТЗ 8.2) ----------
@@ -368,6 +401,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // Категории, на которые действует скидка (null — на весь заказ). Нужны для
     // чека: скидку распределяем только по подпадающим строкам.
     let promoCategorySlugs: string[] | null = null;
+    let promoUsageLimit: number | null = null;
     if (dto.promoCode?.trim()) {
       const promo = await this.promocodes.validate(dto.promoCode, mergedItems);
       if (!promo.valid) {
@@ -380,6 +414,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       discountRub = promo.discountRub;
       promoCode = promo.code;
       promoCategorySlugs = promo.categorySlugs ?? null;
+      promoUsageLimit = promo.usageLimit ?? null;
     }
 
     const subtotalRub = lines.reduce(
@@ -693,6 +728,34 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       );
 
       if (promoCode) {
+        // Лимит применений проверялся в validate() ВНЕ транзакции — два
+        // одновременных заказа с одним кодом на границе лимита оба проходили
+        // (находка финального аудита). Сериализуем заказы по коду advisory-локом
+        // (снимается сам на коммите/откате) и перечитываем счётчик под замком:
+        // проигравший гонку увидит выигравшего и получит честный отказ, вся
+        // транзакция (заказ, позиции, резервы) откатится атомарно.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${promoCode}))`,
+        );
+        if (promoUsageLimit !== null) {
+          const [cnt] = await tx
+            .select({ n: sql<number>`count(*)::int` })
+            .from(promocodeUsages)
+            .innerJoin(orders, eq(promocodeUsages.orderId, orders.id))
+            .where(
+              and(
+                eq(promocodeUsages.code, promoCode),
+                ne(orders.status, 'cancelled'),
+              ),
+            );
+          if ((cnt?.n ?? 0) >= promoUsageLimit) {
+            throw new BadRequestException({
+              code: 'PROMO_INVALID',
+              message: PROMO_MESSAGES.limit_reached,
+              details: [{ reason: 'limit_reached' }],
+            });
+          }
+        }
         await tx.insert(promocodeUsages).values({
           code: promoCode,
           orderId: order.id,
@@ -1635,6 +1698,24 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         )
         .returning({ id: orders.id });
       if (!updated.length) return false;
+      if (status === 'paid') {
+        // Резерв онлайн-заказа создаётся со сроком жизни платёжного окна
+        // (created + TTL): не оплатил — автоотмена вернёт товар. Но ОПЛАЧЕННЫЙ
+        // заказ собирается часами, а все расчёты доступного фильтруют резервы
+        // по expires_at > now(). Без сброса срока резерв «испарялся» через
+        // 30 минут от СОЗДАНИЯ, и последнюю единицу оплаченного заказа мог
+        // выкупить второй покупатель (находка финального аудита 11.08.2026).
+        // Оплачен → резерв бессрочный, до released/committed по циклу заказа.
+        await tx
+          .update(stockReservations)
+          .set({ expiresAt: null, updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(stockReservations.orderId, id),
+              eq(stockReservations.status, 'active'),
+            ),
+          );
+      }
       if (status === 'cancelled') {
         await tx
           .update(stockReservations)

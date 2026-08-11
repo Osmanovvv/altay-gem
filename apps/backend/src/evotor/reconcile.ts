@@ -188,6 +188,17 @@ export async function reconcileStore(
   let priceChanged = 0;
   let qtyChanged = 0;
 
+  // Охрана свежести решается В САМОМ UPDATE (SQL CASE, как в пути пушей —
+  // evotor.service.ts): снимок `current` читается один раз в начале прогона,
+  // а цикл по 1700+ строкам идёт десятки секунд — чек, применённый ЗА ЭТО
+  // ВРЕМЯ, успевает подвинуть stock_asof, и решение по устаревшему снимку
+  // откатило бы продажу (находка финального аудита 11.08.2026). JS-проверка
+  // fileQtyApplies остаётся только для счётчиков/журнала — на запись не влияет.
+  const exportAtIso = exportAtMs != null ? new Date(exportAtMs).toISOString() : null;
+  const freshSql = exportAtIso
+    ? sql`(${evotorProducts.stockAsof} is null or ${evotorProducts.stockAsof} <= ${exportAtIso}::timestamptz)`
+    : sql`true`;
+
   for (const p of parsed) {
     const prev = current.get(p.uuid);
     try {
@@ -246,8 +257,15 @@ export async function reconcileStore(
             // Цену/«В продаже» перезаписываем авторитетно, НО пустые значения
             // выгрузки не затирают текущее (дыра в отчёте ≠ изменение).
             ...(p.priceKopecks !== null && { priceKopecks: p.priceKopecks }),
-            ...(qtyWrite && { quantity: String(p.quantity) }),
-            ...(asofStamp && { stockAsof: asofStamp }),
+            // Остаток: при известном времени снимка — SQL-guard по свежести
+            // (см. freshSql выше); без него (CLI-импорт) файл авторитетен.
+            ...(p.quantity !== null &&
+              (exportAtIso
+                ? {
+                    quantity: sql`case when ${freshSql} then ${String(p.quantity)}::numeric else ${evotorProducts.quantity} end`,
+                    stockAsof: sql`case when ${freshSql} then ${exportAtIso}::timestamptz else ${evotorProducts.stockAsof} end`,
+                  }
+                : { quantity: String(p.quantity) })),
             ...(p.allowToSell !== null && { allowToSell: p.allowToSell }),
             syncedAt: sql`now()`,
             updatedAt: sql`now()`,

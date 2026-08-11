@@ -129,7 +129,8 @@ const envSchema = z.object({
   // PAYMENT_MODE (full_payment | full_prepayment), TAX_SYSTEM_CODE (СНО 1..6,
   // только если у аккаунта несколько), RECEIPT_MEASURE (ед. изм. для ФФД 1.2).
   YOOKASSA_RECEIPT_ENABLED: z.string().optional(),
-  // 1..6 базовые + 11/12 (НДС 22% и 22/122, с 01.01.2026). УСН заказчицы = 1.
+  // 1..12: 1 Без НДС, 3 — 10%, 7 — 5%, 8 — 7%, 11 — 22% (реформа-2026) + расч.
+  // У заказчицы НДС 5% → боевое значение 7 (сверено с Эвотором 10.08.2026).
   YOOKASSA_VAT_CODE: z.coerce.number().int().min(1).max(12).optional(),
   YOOKASSA_PAYMENT_MODE: z.string().optional(),
   YOOKASSA_TAX_SYSTEM_CODE: z.coerce.number().int().min(1).max(6).optional(),

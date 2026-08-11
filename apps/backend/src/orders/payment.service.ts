@@ -28,6 +28,17 @@ import {
  *
  * Чистая логика (тело/разбор/сумма) — в yookassa.ts; здесь только HTTP+секреты.
  */
+
+/**
+ * Потолок ожидания ответа ЮKassa. ОБЯЗАН быть заметно меньше окна перехвата
+ * ключа идемпотентности (IDEM_STALE_MS = 60 с в orders.service.ts): без
+ * таймаута зависший запрос №1 жил бы минуты, ретрай покупателя перехватывал
+ * бы «брошенный» ключ, и на одну корзину создавались бы ДВА заказа с двумя
+ * платёжными ссылками (находка финального аудита). С таймаутом владелец ключа
+ * гарантированно завершается — успехом или ошибкой — до порога перехвата.
+ */
+const YOOKASSA_TIMEOUT_MS = 30_000;
+
 @Injectable()
 export class PaymentService {
   private readonly log = new Logger(PaymentService.name);
@@ -71,6 +82,7 @@ export class PaymentService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(buildPaymentRequest(input)),
+      signal: AbortSignal.timeout(YOOKASSA_TIMEOUT_MS),
     }).catch((err: Error) => {
       this.log.error(`ЮKassa недоступна: ${err.message}`);
       throw new ServiceUnavailableException('Платёжный сервис недоступен');
@@ -105,6 +117,7 @@ export class PaymentService {
         headers: {
           Authorization: yooKassaAuthHeader(this.shopId, this.secretKey),
         },
+        signal: AbortSignal.timeout(YOOKASSA_TIMEOUT_MS),
       },
     ).catch((err: Error) => {
       this.log.error(`ЮKassa недоступна при перезапросе платежа: ${err.message}`);
@@ -156,6 +169,7 @@ export class PaymentService {
         'Content-Type': 'application/json',
       },
       body,
+      signal: AbortSignal.timeout(YOOKASSA_TIMEOUT_MS),
     }).catch((err: Error) => {
       this.log.error(`ЮKassa недоступна при отправке чека: ${err.message}`);
       throw new ServiceUnavailableException('Сервис чеков недоступен');
@@ -189,6 +203,7 @@ export class PaymentService {
         headers: {
           Authorization: yooKassaAuthHeader(this.shopId, this.secretKey),
         },
+        signal: AbortSignal.timeout(YOOKASSA_TIMEOUT_MS),
       },
     ).catch((err: Error) => {
       this.log.error(`ЮKassa недоступна при проверке чека: ${err.message}`);
@@ -225,6 +240,7 @@ export class PaymentService {
         headers: {
           Authorization: yooKassaAuthHeader(this.shopId, this.secretKey),
         },
+        signal: AbortSignal.timeout(YOOKASSA_TIMEOUT_MS),
       },
     ).catch((err: Error) => {
       this.log.error(`ЮKassa недоступна при поиске чека: ${err.message}`);
