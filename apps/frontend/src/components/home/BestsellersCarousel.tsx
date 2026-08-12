@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
@@ -213,8 +214,25 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                   boxShadow: "var(--shadow-card)",
                   border: "1px solid rgba(31,26,14,0.06)",
                   transition: "var(--transition-smooth)",
+                  // Точка отсчёта для ссылки-накладки ниже. На вид не влияет:
+                  // все absolute внутри карточки лежат в своём .relative-блоке
+                  // с картинкой и на эту точку отсчёта не смотрят.
+                  position: "relative",
                 }}
               >
+                {/* Переход на страницу товара (ТЗ 6.4). Ссылка-НАКЛАДКА, а не
+                    обёртка: .bs-card — это сам элемент ленты, его ширину
+                    задают медиазапросы через !important, и обёртка снаружи
+                    сломала бы адаптив (3 карточки на планшете, 4 на десктопе).
+                    Накладка прозрачная и ничего не смещает; кнопки лежат
+                    выше неё по z-index и продолжают работать как раньше. */}
+                <Link
+                  to="/product/$slug"
+                  params={{ slug: p.id }}
+                  aria-label={`Открыть товар: ${p.name}`}
+                  className="absolute inset-0"
+                  style={{ zIndex: 1 }}
+                />
                 <div
                   className="relative"
                   style={{
@@ -365,6 +383,10 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                             minHeight: 44,
                             backgroundColor: "rgba(31,26,14,0.06)",
                             padding: 3,
+                            // Выше ссылки-накладки: «−»/«+» должны менять
+                            // количество, а не открывать страницу товара.
+                            position: "relative",
+                            zIndex: 2,
                           }}
                         >
                           <button
@@ -421,6 +443,10 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                           padding: "12px 18px",
                           minHeight: 44,
                           transition: "var(--transition-smooth)",
+                          // Выше ссылки-накладки: клик по кнопке кладёт товар
+                          // в корзину и НЕ уводит на страницу товара.
+                          position: "relative",
+                          zIndex: 2,
                         }}
                       >
                         <ShoppingBag size={16} />В корзину

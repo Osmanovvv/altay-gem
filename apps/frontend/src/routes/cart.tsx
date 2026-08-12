@@ -491,12 +491,18 @@ function CartItemRow({
         </button>
       </div>
 
-      {/* Mobile remove */}
+      {/* Удаление позиции на телефоне. Кнопка была в разметке с самого
+          импорта шаблона, но заглушена display:"none" — и убрать ОДИН товар с
+          телефона было нельзя вообще: «−» в счётчике не опускается ниже 1, а
+          крестик справа живёт только в десктопной колонке (md:flex). Оставался
+          лишь «Очистить», сносящий всю корзину. Класс absolute тут же
+          противоречил position:relative из стиля (побеждал стиль) — убран как
+          мёртвый. Позиция в гриде задана автором: колонка 2, прижата вправо. */}
       <button
         type="button"
         onClick={onRemove}
         aria-label="Удалить из корзины"
-        className="absolute inline-flex items-center justify-center rounded-full transition-colors hover:bg-black/5 md:hidden"
+        className="inline-flex items-center justify-center rounded-full transition-colors hover:bg-black/5 md:hidden"
         style={{
           width: 32,
           height: 32,
@@ -505,7 +511,6 @@ function CartItemRow({
           gridColumn: "2",
           justifySelf: "end",
           marginTop: -4,
-          display: "none",
         }}
       >
         <X size={16} />
