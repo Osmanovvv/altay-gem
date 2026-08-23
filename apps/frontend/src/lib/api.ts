@@ -61,6 +61,8 @@ export interface ApiCategory {
   sortOrder: number;
   productCount: number;
   subcategories: string[];
+  /** Выделение категории на витрине мини-аппа MAX (ТЗ р.13). На сайте не применяется. */
+  priorityInMax?: boolean;
 }
 
 export interface ApiCatalogResponse {
@@ -284,11 +286,13 @@ export const quoteDelivery = (body: {
 export const createOrder = (
   body: Record<string, unknown>,
   idempotencyKey: string,
+  /** Доп. заголовки канала: мини-апп MAX шлёт X-Source, бэкенд пишет источник в заказ. */
+  extraHeaders?: Record<string, string>,
 ): Promise<ApiOrderCreated> =>
   request("/orders", {
     method: "POST",
     body: JSON.stringify(body),
-    headers: { "Idempotency-Key": idempotencyKey },
+    headers: { "Idempotency-Key": idempotencyKey, ...extraHeaders },
   });
 
 export const fetchOrder = (id: string | number, token: string): Promise<ApiOrderStatus> =>

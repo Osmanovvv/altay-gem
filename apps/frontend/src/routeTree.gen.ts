@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as MaxRouteImport } from './routes/max'
 import { Route as DeliveryRouteImport } from './routes/delivery'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CatalogRouteImport } from './routes/catalog'
@@ -19,9 +20,16 @@ import { Route as CartRouteImport } from './routes/cart'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PromoIndexRouteImport } from './routes/promo.index'
+import { Route as MaxIndexRouteImport } from './routes/max.index'
 import { Route as PromoSlugRouteImport } from './routes/promo.$slug'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as MaxCheckoutRouteImport } from './routes/max.checkout'
+import { Route as MaxCatalogRouteImport } from './routes/max.catalog'
+import { Route as MaxCartRouteImport } from './routes/max.cart'
+import { Route as MaxOrderIndexRouteImport } from './routes/max.order.index'
+import { Route as MaxProductSlugRouteImport } from './routes/max.product.$slug'
+import { Route as MaxOrderIdRouteImport } from './routes/max.order.$id'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -36,6 +44,11 @@ const ReviewsRoute = ReviewsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaxRoute = MaxRouteImport.update({
+  id: '/max',
+  path: '/max',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeliveryRoute = DeliveryRouteImport.update({
@@ -73,6 +86,11 @@ const PromoIndexRoute = PromoIndexRouteImport.update({
   path: '/promo/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MaxIndexRoute = MaxIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MaxRoute,
+} as any)
 const PromoSlugRoute = PromoSlugRouteImport.update({
   id: '/promo/$slug',
   path: '/promo/$slug',
@@ -88,6 +106,36 @@ const OrderIdRoute = OrderIdRouteImport.update({
   path: '/order/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MaxCheckoutRoute = MaxCheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
+  getParentRoute: () => MaxRoute,
+} as any)
+const MaxCatalogRoute = MaxCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => MaxRoute,
+} as any)
+const MaxCartRoute = MaxCartRouteImport.update({
+  id: '/cart',
+  path: '/cart',
+  getParentRoute: () => MaxRoute,
+} as any)
+const MaxOrderIndexRoute = MaxOrderIndexRouteImport.update({
+  id: '/order/',
+  path: '/order/',
+  getParentRoute: () => MaxRoute,
+} as any)
+const MaxProductSlugRoute = MaxProductSlugRouteImport.update({
+  id: '/product/$slug',
+  path: '/product/$slug',
+  getParentRoute: () => MaxRoute,
+} as any)
+const MaxOrderIdRoute = MaxOrderIdRouteImport.update({
+  id: '/order/$id',
+  path: '/order/$id',
+  getParentRoute: () => MaxRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,13 +144,21 @@ export interface FileRoutesByFullPath {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/delivery': typeof DeliveryRoute
+  '/max': typeof MaxRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
+  '/max/cart': typeof MaxCartRoute
+  '/max/catalog': typeof MaxCatalogRoute
+  '/max/checkout': typeof MaxCheckoutRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/promo/$slug': typeof PromoSlugRoute
+  '/max/': typeof MaxIndexRoute
   '/promo/': typeof PromoIndexRoute
+  '/max/order/$id': typeof MaxOrderIdRoute
+  '/max/product/$slug': typeof MaxProductSlugRoute
+  '/max/order/': typeof MaxOrderIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -114,10 +170,17 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
+  '/max/cart': typeof MaxCartRoute
+  '/max/catalog': typeof MaxCatalogRoute
+  '/max/checkout': typeof MaxCheckoutRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/promo/$slug': typeof PromoSlugRoute
+  '/max': typeof MaxIndexRoute
   '/promo': typeof PromoIndexRoute
+  '/max/order/$id': typeof MaxOrderIdRoute
+  '/max/product/$slug': typeof MaxProductSlugRoute
+  '/max/order': typeof MaxOrderIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -127,13 +190,21 @@ export interface FileRoutesById {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/delivery': typeof DeliveryRoute
+  '/max': typeof MaxRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/reviews': typeof ReviewsRoute
   '/search': typeof SearchRoute
+  '/max/cart': typeof MaxCartRoute
+  '/max/catalog': typeof MaxCatalogRoute
+  '/max/checkout': typeof MaxCheckoutRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/promo/$slug': typeof PromoSlugRoute
+  '/max/': typeof MaxIndexRoute
   '/promo/': typeof PromoIndexRoute
+  '/max/order/$id': typeof MaxOrderIdRoute
+  '/max/product/$slug': typeof MaxProductSlugRoute
+  '/max/order/': typeof MaxOrderIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -144,13 +215,21 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/delivery'
+    | '/max'
     | '/privacy'
     | '/reviews'
     | '/search'
+    | '/max/cart'
+    | '/max/catalog'
+    | '/max/checkout'
     | '/order/$id'
     | '/product/$slug'
     | '/promo/$slug'
+    | '/max/'
     | '/promo/'
+    | '/max/order/$id'
+    | '/max/product/$slug'
+    | '/max/order/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -162,10 +241,17 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reviews'
     | '/search'
+    | '/max/cart'
+    | '/max/catalog'
+    | '/max/checkout'
     | '/order/$id'
     | '/product/$slug'
     | '/promo/$slug'
+    | '/max'
     | '/promo'
+    | '/max/order/$id'
+    | '/max/product/$slug'
+    | '/max/order'
   id:
     | '__root__'
     | '/'
@@ -174,13 +260,21 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/delivery'
+    | '/max'
     | '/privacy'
     | '/reviews'
     | '/search'
+    | '/max/cart'
+    | '/max/catalog'
+    | '/max/checkout'
     | '/order/$id'
     | '/product/$slug'
     | '/promo/$slug'
+    | '/max/'
     | '/promo/'
+    | '/max/order/$id'
+    | '/max/product/$slug'
+    | '/max/order/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -190,6 +284,7 @@ export interface RootRouteChildren {
   CatalogRoute: typeof CatalogRoute
   CheckoutRoute: typeof CheckoutRoute
   DeliveryRoute: typeof DeliveryRoute
+  MaxRoute: typeof MaxRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   ReviewsRoute: typeof ReviewsRoute
   SearchRoute: typeof SearchRoute
@@ -220,6 +315,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/max': {
+      id: '/max'
+      path: '/max'
+      fullPath: '/max'
+      preLoaderRoute: typeof MaxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/delivery': {
@@ -271,6 +373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromoIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/max/': {
+      id: '/max/'
+      path: '/'
+      fullPath: '/max/'
+      preLoaderRoute: typeof MaxIndexRouteImport
+      parentRoute: typeof MaxRoute
+    }
     '/promo/$slug': {
       id: '/promo/$slug'
       path: '/promo/$slug'
@@ -292,8 +401,72 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/max/checkout': {
+      id: '/max/checkout'
+      path: '/checkout'
+      fullPath: '/max/checkout'
+      preLoaderRoute: typeof MaxCheckoutRouteImport
+      parentRoute: typeof MaxRoute
+    }
+    '/max/catalog': {
+      id: '/max/catalog'
+      path: '/catalog'
+      fullPath: '/max/catalog'
+      preLoaderRoute: typeof MaxCatalogRouteImport
+      parentRoute: typeof MaxRoute
+    }
+    '/max/cart': {
+      id: '/max/cart'
+      path: '/cart'
+      fullPath: '/max/cart'
+      preLoaderRoute: typeof MaxCartRouteImport
+      parentRoute: typeof MaxRoute
+    }
+    '/max/order/': {
+      id: '/max/order/'
+      path: '/order'
+      fullPath: '/max/order/'
+      preLoaderRoute: typeof MaxOrderIndexRouteImport
+      parentRoute: typeof MaxRoute
+    }
+    '/max/product/$slug': {
+      id: '/max/product/$slug'
+      path: '/product/$slug'
+      fullPath: '/max/product/$slug'
+      preLoaderRoute: typeof MaxProductSlugRouteImport
+      parentRoute: typeof MaxRoute
+    }
+    '/max/order/$id': {
+      id: '/max/order/$id'
+      path: '/order/$id'
+      fullPath: '/max/order/$id'
+      preLoaderRoute: typeof MaxOrderIdRouteImport
+      parentRoute: typeof MaxRoute
+    }
   }
 }
+
+interface MaxRouteChildren {
+  MaxCartRoute: typeof MaxCartRoute
+  MaxCatalogRoute: typeof MaxCatalogRoute
+  MaxCheckoutRoute: typeof MaxCheckoutRoute
+  MaxIndexRoute: typeof MaxIndexRoute
+  MaxOrderIdRoute: typeof MaxOrderIdRoute
+  MaxProductSlugRoute: typeof MaxProductSlugRoute
+  MaxOrderIndexRoute: typeof MaxOrderIndexRoute
+}
+
+const MaxRouteChildren: MaxRouteChildren = {
+  MaxCartRoute: MaxCartRoute,
+  MaxCatalogRoute: MaxCatalogRoute,
+  MaxCheckoutRoute: MaxCheckoutRoute,
+  MaxIndexRoute: MaxIndexRoute,
+  MaxOrderIdRoute: MaxOrderIdRoute,
+  MaxProductSlugRoute: MaxProductSlugRoute,
+  MaxOrderIndexRoute: MaxOrderIndexRoute,
+}
+
+const MaxRouteWithChildren = MaxRoute._addFileChildren(MaxRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -302,6 +475,7 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogRoute: CatalogRoute,
   CheckoutRoute: CheckoutRoute,
   DeliveryRoute: DeliveryRoute,
+  MaxRoute: MaxRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   ReviewsRoute: ReviewsRoute,
   SearchRoute: SearchRoute,

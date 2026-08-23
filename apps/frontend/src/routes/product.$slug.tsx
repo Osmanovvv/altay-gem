@@ -11,6 +11,7 @@ import { RelatedProducts } from "@/components/product/RelatedProducts";
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
 import { ApiError, fetchProduct, toProduct } from "@/lib/api";
+import { readableCharacteristics } from "@/lib/characteristics";
 
 export const Route = createFileRoute("/product/$slug")({
   loader: async ({ params }) => {
@@ -100,17 +101,11 @@ function ProductPage() {
     ? { name: detail.categoryName, slug: detail.categorySlug }
     : null;
 
-  const CHAR_LABELS: Record<string, string> = {
-    weightVolume: "Вес/Объём",
-    composition: "Состав",
-    manufacturer: "Производитель",
-    shelfLife: "Срок годности",
-    storage: "Условия хранения",
-  };
-  const specs: Record<string, string> = {};
-  for (const [k, v] of Object.entries(detail.characteristics ?? {})) {
-    if (v && CHAR_LABELS[k]) specs[CHAR_LABELS[k]] = v;
-  }
+  // Подписи характеристик вынесены в общий модуль: тот же список у мини-аппа
+  // MAX, иначе в одном из каналов вылезет технический ключ.
+  const specs: Record<string, string> = Object.fromEntries(
+    readableCharacteristics(detail.characteristics),
+  );
   const relatedProducts = detail.related.map(toProduct);
 
   const showToast = (msg: string) => {

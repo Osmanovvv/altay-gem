@@ -4,5 +4,8 @@ Disallow: /cart
 Disallow: /checkout
 Disallow: /order/
 Disallow: /search
+# Мини-приложение MAX: живёт внутри мессенджера, в поиске не нужно
+# (иначе каталог задвоится в выдаче).
+Disallow: /max
 
 Sitemap: https://ecomarket-altai.ru/sitemap.xml
