@@ -25,6 +25,7 @@ import {
   phoneDigits,
   significantDigitsBeforeCaret,
 } from "@/lib/phone-mask";
+import { CONSENT_LINK_TEXT, consentPrefix, submitLabelFor } from "@/lib/checkout-rules";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -817,14 +818,37 @@ function CheckoutPage() {
                         }}
                       >
                         <Check size={18} />
-                        {submitting
-                          ? "Отправляем..."
-                          : form.payment === "online"
-                            ? "Оплатить"
-                            : "Оформить заказ"}
+                        {submitting ? "Отправляем..." : submitLabelFor(form.payment)}
                       </button>
                     )}
                   </div>
+
+                  {/* Согласие на обработку ПД (152-ФЗ). Показываем только на
+                      последнем шаге — там, где стоит кнопка отправки: согласие
+                      привязано к конкретному действию, а не к странице. Текст
+                      берём из общего модуля, чтобы он называл ровно ту кнопку,
+                      которая нарисована рядом. */}
+                  {step === 2 && (
+                    <p
+                      // На широком экране кнопки разведены по краям, и строка
+                      // должна стоять под «Оплатить», а не под «Назад».
+                      className="mt-3 sm:text-right"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: 12,
+                        lineHeight: 1.45,
+                        color: "var(--color-text-muted)",
+                      }}
+                    >
+                      {consentPrefix(form.payment)}{" "}
+                      <Link
+                        to="/privacy"
+                        style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}
+                      >
+                        {CONSENT_LINK_TEXT}
+                      </Link>
+                    </p>
+                  )}
                 </form>
 
                 <aside className="hidden lg:block">

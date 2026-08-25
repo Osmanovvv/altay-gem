@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { PaymentMethod } from "./checkout-rules";
 import {
   PICKUP_POINTS,
   isPickupMethod,
@@ -6,6 +7,9 @@ import {
   paymentOptionsFor,
   validateContacts,
   validateReceiving,
+  submitLabelFor,
+  consentPrefix,
+  CONSENT_LINK_TEXT,
 } from "./checkout-rules";
 
 /**
@@ -124,5 +128,41 @@ describe("validateReceiving", () => {
 
   test("курьер с адресом — ошибок нет", () => {
     expect(validateReceiving({ delivery: "courier_nsk", address: "ул. Ленина 1" })).toEqual({});
+  });
+});
+
+describe("согласие на обработку персональных данных", () => {
+  const ALL: PaymentMethod[] = ["online", "cash_on_pickup", "card_on_pickup"];
+
+  test("онлайн-оплата — кнопка «Оплатить»", () => {
+    expect(submitLabelFor("online")).toBe("Оплатить");
+  });
+
+  test("оплата на месте — кнопка «Оформить заказ»", () => {
+    expect(submitLabelFor("cash_on_pickup")).toBe("Оформить заказ");
+    expect(submitLabelFor("card_on_pickup")).toBe("Оформить заказ");
+  });
+
+  /**
+   * Главный тест раздела. Согласие считается полученным по конкретному
+   * действию, поэтому текст обязан называть ТУ кнопку, которая нарисована.
+   * Если подпись кнопки когда-нибудь поменяют, а текст забудут — покупатель
+   * увидит «Нажимая „Оплатить“» под кнопкой «Оформить заказ», и согласие
+   * будет получено не на то действие.
+   */
+  test("текст согласия цитирует ровно подпись кнопки — при любом способе оплаты", () => {
+    for (const p of ALL) {
+      expect(consentPrefix(p)).toContain(`«${submitLabelFor(p)}»`);
+    }
+  });
+
+  test("текст согласия ведёт к политике и говорит о согласии", () => {
+    expect(consentPrefix("online")).toContain("соглашаетесь");
+    expect(CONSENT_LINK_TEXT).toContain("персональных данных");
+  });
+
+  test("неизвестный способ оплаты не роняет форму — ведёт себя как оплата на месте", () => {
+    expect(submitLabelFor("")).toBe("Оформить заказ");
+    expect(consentPrefix("")).toContain("«Оформить заказ»");
   });
 });

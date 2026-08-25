@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, Check } from "lucide-react";
 
 import { useCart } from "@/context/CartContext";
@@ -8,10 +8,13 @@ import type { ApiDeliveryQuote } from "@/lib/api";
 import { formatPhoneDigits, phoneDigits } from "@/lib/phone-mask";
 import { maxOrderHeaders } from "@/lib/max-app";
 import {
+  CONSENT_LINK_TEXT,
   PICKUP_POINTS,
+  consentPrefix,
   isPickupMethod,
   normalizePhone,
   paymentOptionsFor,
+  submitLabelFor,
   validateContacts,
   validateReceiving,
 } from "@/lib/checkout-rules";
@@ -363,6 +366,29 @@ function MaxCheckout() {
 
       {formError && <ErrorText>{formError}</ErrorText>}
 
+      {/* Согласие на обработку ПД (152-ФЗ) — тот же текст и та же ссылка, что
+          на сайте: общий источник в checkout-rules. Стоит в обычном потоке, а
+          не в закреплённой панели: панель иначе вырастет и закроет часть
+          формы, а прокрутив до конца, покупатель всё равно видит эту строку
+          прямо над кнопкой. */}
+      <p
+        className="mt-4"
+        style={{
+          fontFamily: "var(--font-body)",
+          fontSize: 12,
+          lineHeight: 1.45,
+          color: "var(--color-text-muted)",
+        }}
+      >
+        {consentPrefix(payment)}{" "}
+        <Link
+          to="/privacy"
+          style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}
+        >
+          {CONSENT_LINK_TEXT}
+        </Link>
+      </p>
+
       <div
         className="fixed inset-x-0 z-40 px-4 py-3"
         style={{
@@ -390,8 +416,8 @@ function MaxCheckout() {
           {submitting
             ? "Оформляем…"
             : payment === "online"
-              ? `Оплатить ${formatPrice(grandTotal)}`
-              : `Оформить заказ · ${formatPrice(grandTotal)}`}
+              ? `${submitLabelFor(payment)} ${formatPrice(grandTotal)}`
+              : `${submitLabelFor(payment)} · ${formatPrice(grandTotal)}`}
         </button>
       </div>
     </div>
