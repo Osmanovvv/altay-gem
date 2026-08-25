@@ -3,6 +3,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/info/PageHero";
 import { useSettings } from "@/context/SettingsContext";
+import { parsePolicyText } from "@/lib/policy-text";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -34,16 +35,44 @@ function PrivacyPage() {
         />
         <section className="mx-auto w-full max-w-3xl px-4 py-14 md:px-8 md:py-20">
           {text ? (
-            <div
-              style={{
-                fontFamily: "var(--font-body)",
-                fontSize: 16,
-                lineHeight: 1.7,
-                color: "var(--color-text)",
-                whiteSpace: "pre-line",
-              }}
-            >
-              {text}
+            <div>
+              {parsePolicyText(text).map((block, i) =>
+                block.kind === "heading" ? (
+                  <h2
+                    key={i}
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: 20,
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                      color: "var(--color-text)",
+                      // Дисплейный шрифт по умолчанию даёт минускульные цифры:
+                      // «1» в «1. ОБЩИЕ ПОЛОЖЕНИЯ» проваливается ниже капса.
+                      fontVariantNumeric: "lining-nums",
+                      // Первый заголовок не отбиваем — над ним и так шапка.
+                      marginTop: i === 0 ? 0 : 36,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {block.text}
+                  </h2>
+                ) : (
+                  <p
+                    key={i}
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: 16,
+                      lineHeight: 1.7,
+                      color: "var(--color-text)",
+                      // Внутри абзаца переносы значимы: адреса и перечисления.
+                      whiteSpace: "pre-line",
+                      marginTop: i === 0 ? 0 : 12,
+                    }}
+                  >
+                    {block.text}
+                  </p>
+                ),
+              )}
             </div>
           ) : (
             <div
