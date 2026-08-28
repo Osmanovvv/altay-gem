@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
+import { useChannel } from "@/context/ChannelContext";
+import { productTo } from "@/lib/channel-routes";
 import { ChevronLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/data/products";
@@ -36,6 +38,9 @@ interface BestsellersCarouselProps {
 }
 
 export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProps) {
+  // Те же секции рисуются и на сайте, и внутри мини-аппа MAX — ссылки
+  // должны вести в свой канал, иначе из приложения выбрасывает на сайт.
+  const channel = useChannel();
   const BESTSELLERS: Bestseller[] = hitCards.map((c) => ({
     id: c.slug,
     name: c.name,
@@ -227,7 +232,7 @@ export function BestsellersCarousel({ items: hitCards }: BestsellersCarouselProp
                     Накладка прозрачная и ничего не смещает; кнопки лежат
                     выше неё по z-index и продолжают работать как раньше. */}
                 <Link
-                  to="/product/$slug"
+                  to={productTo(channel)}
                   params={{ slug: p.id }}
                   aria-label={`Открыть товар: ${p.name}`}
                   className="absolute inset-0"

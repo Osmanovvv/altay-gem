@@ -1,5 +1,6 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { MaxShell } from "@/components/max/MaxShell";
+import { ChannelProvider } from "@/context/ChannelContext";
 
 /**
  * Мини-приложение MAX (ТЗ р.13) — «второй канал продаж на том же бэкенде и
@@ -25,8 +26,13 @@ export const Route = createFileRoute("/max")({
 
 function MaxLayout() {
   return (
-    <MaxShell>
-      <Outlet />
-    </MaxShell>
+    // Канал объявляем на всю оболочку: общие секции витрины рисуются и здесь,
+    // и на сайте, а ссылки внутри них должны оставаться внутри /max — иначе из
+    // приложения выбрасывает на сайт вместе с потерей панели вкладок.
+    <ChannelProvider channel="max">
+      <MaxShell>
+        <Outlet />
+      </MaxShell>
+    </ChannelProvider>
   );
 }

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
+import { useChannel } from "@/context/ChannelContext";
+import { bannerLinkProps } from "@/lib/channel-routes";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ApiBanner } from "@/lib/api";
 
@@ -19,6 +21,8 @@ interface PromoBannerProps {
 }
 
 export function PromoBanner({ banners }: PromoBannerProps) {
+  // Секция общая с мини-аппом MAX — ссылки должны вести в свой канал.
+  const channel = useChannel();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const count = banners.length;
@@ -45,13 +49,9 @@ export function PromoBanner({ banners }: PromoBannerProps) {
     imageAlt: b.title,
     accentColor: "#faf7f2",
   };
-  const linkProps =
-    b.link?.type === "promo"
-      ? { to: "/promo/$slug" as const, params: { slug: b.link.slug } }
-      : {
-          to: "/catalog" as const,
-          search: { category: b.link?.slug },
-        };
+  // Куда ведёт баннер, зависит от канала: в мини-аппе страницы акции нет, и
+  // ссылка обязана остаться внутри /max (см. lib/channel-routes.ts).
+  const linkProps = bannerLinkProps(channel, b.link ?? null);
 
   return (
     <section

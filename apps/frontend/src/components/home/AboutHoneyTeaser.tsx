@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { ArrowRight, BadgeCheck, Flower2, Hexagon, Leaf } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useChannel } from "@/context/ChannelContext";
+import { catalogTo } from "@/lib/channel-routes";
 import { HOME_ASSETS } from "@/data/homeAssets";
 
 const TEASER_FACTS = [
@@ -14,6 +16,9 @@ interface AboutHoneyTeaserProps {
 }
 
 export function AboutHoneyTeaser({ section }: AboutHoneyTeaserProps) {
+  // Те же секции рисуются и на сайте, и внутри мини-аппа MAX — ссылки
+  // должны вести в свой канал, иначе из приложения выбрасывает на сайт.
+  const channel = useChannel();
   return (
     <section
       aria-labelledby="about-honey-title"
@@ -102,7 +107,7 @@ export function AboutHoneyTeaser({ section }: AboutHoneyTeaserProps) {
           </div>
 
           <Link
-            to="/catalog"
+            to={catalogTo(channel)}
             className="mt-9 inline-flex items-center gap-2 rounded-full transition-colors"
             style={{
               backgroundColor: "var(--color-accent)",

@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { ArrowRight, ShoppingBag, Sparkles } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useChannel } from "@/context/ChannelContext";
+import { catalogTo, productTo, promoTo } from "@/lib/channel-routes";
 import { HOME_ASSETS } from "@/data/homeAssets";
 import type { Product } from "@/data/products";
 
@@ -18,6 +20,9 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
+  // Те же секции рисуются и на сайте, и внутри мини-аппа MAX — ссылки
+  // должны вести в свой канал, иначе из приложения выбрасывает на сайт.
+  const channel = useChannel();
   const featuredProduct = product;
 
   const titleLines = ["Настоящие продукты", "Алтая"];
@@ -119,7 +124,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
           >
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Link
-                to="/catalog"
+                to={catalogTo(channel)}
                 className="inline-flex items-center gap-2 rounded-full px-7 py-4 transition-colors"
                 style={{
                   backgroundColor: "var(--color-accent)",
@@ -140,7 +145,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
               whileTap={{ scale: 0.98 }}
             >
               <Link
-                to="/promo"
+                to={promoTo(channel)}
                 className="inline-flex items-center rounded-full border px-7 py-4 transition-colors"
                 style={{
                   borderColor: "var(--color-accent)",
@@ -203,7 +208,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
             className="w-full max-w-sm justify-self-start lg:justify-self-end"
           >
             <Link
-              to="/product/$slug"
+              to={productTo(channel)}
               params={{ slug: featuredProduct.id }}
               aria-label={`Открыть товар: ${featuredProduct.name}`}
               className="group block overflow-hidden rounded-2xl outline-none transition-transform focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-light)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-bg-dark)]"

@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
+import { useChannel } from "@/context/ChannelContext";
+import { catalogTo } from "@/lib/channel-routes";
 import { iconFor, type FrontCategory } from "@/lib/api";
 
 interface CategoriesGridProps {
@@ -7,6 +9,9 @@ interface CategoriesGridProps {
 }
 
 export function CategoriesGrid({ categories }: CategoriesGridProps) {
+  // Те же секции рисуются и на сайте, и внутри мини-аппа MAX — ссылки
+  // должны вести в свой канал, иначе из приложения выбрасывает на сайт.
+  const channel = useChannel();
   return (
     <section
       id="catalog"
@@ -79,7 +84,7 @@ export function CategoriesGrid({ categories }: CategoriesGridProps) {
                 }}
               >
                 <Link
-                  to="/catalog"
+                  to={catalogTo(channel)}
                   search={{ category: cat.id }}
                   className="relative flex h-full min-h-[200px] flex-col justify-between p-5 md:p-6"
                   style={{
@@ -174,7 +179,7 @@ export function CategoriesGrid({ categories }: CategoriesGridProps) {
 
         <div className="mt-10 flex justify-center">
           <Link
-            to="/catalog"
+            to={catalogTo(channel)}
             className="inline-flex items-center rounded-full transition-colors"
             style={{
               backgroundColor: "var(--color-accent)",
