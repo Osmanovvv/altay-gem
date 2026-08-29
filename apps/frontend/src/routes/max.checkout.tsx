@@ -7,7 +7,8 @@ import { ApiError, createOrder, quoteDelivery } from "@/lib/api";
 import type { ApiDeliveryQuote } from "@/lib/api";
 import { formatPhoneDigits, phoneDigits } from "@/lib/phone-mask";
 import { maxOrderHeaders } from "@/lib/max-app";
-import { maxBridge, openExternal } from "@/lib/max-bridge";
+import { insideMax, maxBridge, openExternal } from "@/lib/max-bridge";
+import { contactPhoneDigits, prefill, profileName } from "@/lib/max-profile";
 import {
   CONSENT_LINK_TEXT,
   PICKUP_POINTS,
@@ -75,6 +76,31 @@ function MaxCheckout() {
   useEffect(() => {
     if (!payOptions.cashOnPickup && payment !== "online") setPayment("online");
   }, [payOptions.cashOnPickup, payment]);
+
+  // Внутри MAX профиль знает имя покупателя — подставляем его сразу (ТЗ р.13).
+  // Только в пустое поле: если человек уже что-то ввёл и вернулся назад,
+  // затирать введённое нельзя.
+  const [canUseProfile, setCanUseProfile] = useState(false);
+  useEffect(() => {
+    const bridge = maxBridge();
+    if (!insideMax(bridge)) return;
+    setCanUseProfile(typeof bridge?.requestContact === "function");
+    const suggestion = profileName(bridge?.initDataUnsafe?.user);
+    if (suggestion) setName((cur) => prefill(cur, suggestion));
+  }, []);
+
+  /** Телефон — только по нажатию: платформа показывает окно согласия. */
+  async function fillPhoneFromProfile() {
+    const bridge = maxBridge();
+    if (!bridge?.requestContact) return;
+    try {
+      const contact = await bridge.requestContact();
+      const digits = contactPhoneDigits(contact?.phone ?? "");
+      if (digits) setPhone(formatPhoneDigits(digits));
+    } catch {
+      // Отказ покупателя — обычное дело, поле просто остаётся пустым.
+    }
+  }
 
   // Серверный расчёт доставки: сумма и наличие считаются на бэкенде.
   useEffect(() => {
@@ -225,6 +251,24 @@ function MaxCheckout() {
             placeholder="+7 (___) ___-__-__"
             style={inputStyle(!!errors.phone)}
           />
+          {/* Телефона в данных запуска нет — его отдаёт отдельное окно согласия.
+              Поэтому не дёргаем окно при входе, а показываем кнопку, и только
+              внутри MAX: в браузере подставлять неоткуда. */}
+          {canUseProfile && !phone && (
+            <button
+              type="button"
+              onClick={() => void fillPhoneFromProfile()}
+              className="mt-1.5"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: 12,
+                color: "var(--color-accent-dark)",
+                textDecoration: "underline",
+              }}
+            >
+              Подставить из MAX
+            </button>
+          )}
         </Field>
         <Field
           label={payment === "online" ? "E-mail (для чека)" : "E-mail"}

@@ -26,6 +26,20 @@ export interface MaxBridge {
   openLink?: (url: string) => void;
   /** Подписанные данные запуска. Заполнены только внутри MAX. */
   initData?: string | null;
+  /** Разобранные данные запуска: профиль покупателя. Телефона в них НЕТ. */
+  initDataUnsafe?: {
+    user?: {
+      id?: number;
+      first_name?: string | null;
+      last_name?: string | null;
+      username?: string | null;
+    } | null;
+  } | null;
+  /**
+   * Запрос телефона — показывает окно согласия в клиенте MAX.
+   * Отдельный метод именно потому, что в данных запуска телефона нет.
+   */
+  requestContact?: () => Promise<{ phone?: string } | null | undefined>;
 }
 
 declare global {
