@@ -20,6 +20,12 @@ export const Route = createFileRoute("/max")({
       { name: "robots", content: "noindex, nofollow" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
     ],
+    // Мост MAX (window.WebApp). Нужен, чтобы уводить на оплату через openLink:
+    // платёжная страница запрещает показ внутри чужого окна, и обычная подмена
+    // адреса ломается, если MAX открывает приложение во фрейме. На сайте скрипт
+    // не подключается — он только здесь. Вне MAX объект не появится, и код
+    // честно откатывается на обычный переход (см. lib/max-bridge.ts).
+    scripts: [{ src: "https://st.max.ru/js/max-web-app.js", defer: true }],
   }),
   component: MaxLayout,
 });

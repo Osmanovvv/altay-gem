@@ -7,6 +7,7 @@ import { ApiError, createOrder, quoteDelivery } from "@/lib/api";
 import type { ApiDeliveryQuote } from "@/lib/api";
 import { formatPhoneDigits, phoneDigits } from "@/lib/phone-mask";
 import { maxOrderHeaders } from "@/lib/max-app";
+import { maxBridge, openExternal } from "@/lib/max-bridge";
 import {
   CONSENT_LINK_TEXT,
   PICKUP_POINTS,
@@ -168,7 +169,11 @@ function MaxCheckout() {
       clearCart();
 
       if (res.paymentUrl) {
-        window.location.href = res.paymentUrl;
+        // Внутри MAX — только через мост: страница оплаты запрещает показ во
+        // фрейме, и подмена адреса оставила бы покупателя с пустым экраном.
+        openExternal(res.paymentUrl, maxBridge(), (u) => {
+          window.location.href = u;
+        });
         return;
       }
       void navigate({

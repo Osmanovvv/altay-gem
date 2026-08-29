@@ -2,6 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Clock, MapPin, Package } from "lucide-react";
 
 import { ApiError, fetchOrder } from "@/lib/api";
+import { maxBridge, openExternal } from "@/lib/max-bridge";
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
 
@@ -120,8 +121,15 @@ function MaxOrder() {
       </p>
 
       {order.status === "awaiting_payment" && order.paymentUrl && (
-        <a
-          href={order.paymentUrl}
+        // Не ссылка, а кнопка: внутри MAX уводим мостом во внешний браузер —
+        // платёжная страница запрещает показ во фрейме (см. lib/max-bridge.ts).
+        <button
+          type="button"
+          onClick={() =>
+            openExternal(order.paymentUrl!, maxBridge(), (u) => {
+              window.location.href = u;
+            })
+          }
           className="mt-3 inline-flex w-full items-center justify-center rounded-full"
           style={{
             backgroundColor: "var(--color-accent)",
@@ -134,7 +142,7 @@ function MaxOrder() {
           }}
         >
           Оплатить заказ
-        </a>
+        </button>
       )}
 
       <h2
