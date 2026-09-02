@@ -213,6 +213,14 @@ export class StrapiService {
     return res.data ?? {};
   }
 
+  /**
+   * Получатели уведомлений бота — их заводит контент-менеджер в админке.
+   * Отдаём как есть: разбор и правила «кому что» живут в notifications.
+   */
+  notificationRecipients(): Promise<Record<string, unknown>[]> {
+    return this.fetchAll('/api/notification-recipients', 'sort=name');
+  }
+
   async deliveryTariffs(): Promise<Record<string, unknown>> {
     const res = await this.fetchJson<{ data: Record<string, unknown> }>(
       '/api/delivery-tariff?populate[russiaWeightTiers]=true',

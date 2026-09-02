@@ -18,6 +18,32 @@ type FieldHint = { label?: string; description?: string };
 type ModelHints = Record<string, FieldHint>;
 
 export const CONTENT_TYPE_HINTS: Record<string, ModelHints> = {
+  'api::notification-recipient.notification-recipient': {
+    name: {
+      label: 'Кто это',
+      description:
+        'Для вас, чтобы не путаться в списке: «Марина», «Менеджеры, общий чат», «Техподдержка».',
+    },
+    chatId: {
+      label: 'Номер чата',
+      description:
+        'Число, которое выдаёт бот-помощник @getmyid_bot: напишите ему из нужного чата и вставьте ответ сюда. Для группы бота magazina надо сначала добавить в этот чат. После сохранения туда придёт проверочное сообщение.',
+    },
+    orders: {
+      label: 'Присылать заказы',
+      description:
+        'ВНИМАНИЕ: в таких уведомлениях есть имя, телефон и адрес покупателя. Ставьте только тем, кто собирает и выдаёт заказы.',
+    },
+    alerts: {
+      label: 'Присылать технические оповещения',
+      description:
+        'Сбои ночной сверки с Эвотором и проблемы с выгрузками. Нужны разработчику и техподдержке; данных покупателей в них нет.',
+    },
+    enabled: {
+      label: 'Получает уведомления',
+      description: 'Снимите галочку, чтобы временно отключить человека, не удаляя запись.',
+    },
+  },
   'api::product.product': {
     adminName: {
       label: 'Название (из Эвотора)',

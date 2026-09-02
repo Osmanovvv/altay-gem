@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { StrapiService } from '../strapi/strapi.service';
+import { newcomers, recipientsFor, type Recipient } from './recipients';
 
 /** Данные заказа для уведомления магазину. */
 export interface NewOrderNotice {
@@ -68,7 +70,15 @@ export class TelegramService {
   private readonly siteUrl: string;
   private readonly enabled: boolean;
 
-  constructor(config: ConfigService) {
+  /** Список получателей из админки: кеш на минуту, как у каталога. */
+  private cache: { at: number; list: Recipient[] } | null = null;
+  /** Состав прошлого чтения — по нему видно, кто появился (см. newcomers). */
+  private known: Set<string> | null = null;
+
+  constructor(
+    config: ConfigService,
+    private readonly strapi: StrapiService,
+  ) {
     this.token = config.get<string>('TELEGRAM_BOT_TOKEN', '');
     this.chatId = config.get<string>('TELEGRAM_ADMIN_CHAT_ID', '');
     this.alertChatId =
@@ -77,9 +87,66 @@ export class TelegramService {
       /\/+$/,
       '',
     );
-    this.enabled = Boolean(this.token && this.chatId);
+    // Достаточно токена: получатели могут быть заведены только в админке.
+    this.enabled = Boolean(this.token);
     if (!this.enabled) {
-      this.log.log('Telegram-уведомления выключены (нет token/chat_id)');
+      this.log.log('Telegram-уведомления выключены (нет TELEGRAM_BOT_TOKEN)');
+    }
+  }
+
+  /**
+   * Получатели из админки. Ошибку Strapi проглатываем сознательно: список —
+   * дополнение к адресам из настроек сервера, и недоступность админки не должна
+   * гасить уведомления совсем (для оповещений аварийный адрес всё равно в игре).
+   */
+  private async recipients(): Promise<Recipient[]> {
+    if (this.cache && Date.now() - this.cache.at < 60_000) return this.cache.list;
+    let list: Recipient[] = [];
+    try {
+      list = (await this.strapi.notificationRecipients()).map((row) => ({
+        chatId: String(row.chatId ?? '').trim(),
+        name: String(row.name ?? '').trim(),
+        orders: row.orders === true,
+        alerts: row.alerts === true,
+        enabled: row.enabled !== false,
+      }));
+      this.cache = { at: Date.now(), list };
+      await this.greetNewcomers(list);
+    } catch (err) {
+      this.log.warn(
+        `Не удалось прочитать получателей уведомлений: ${(err as Error).message}`,
+      );
+      if (this.cache) return this.cache.list;
+    }
+    return list;
+  }
+
+  /** Проверочное сообщение тем, кого добавили после запуска сервера. */
+  private async greetNewcomers(list: Recipient[]): Promise<void> {
+    const active = list.filter((r) => r.enabled).map((r) => r.chatId).filter(Boolean);
+    const fresh = newcomers(this.known, active);
+    this.known = new Set(active);
+    for (const chatId of fresh) {
+      const who = list.find((r) => r.chatId === chatId);
+      await this.send(
+        chatId,
+        `✅ <b>Уведомления подключены</b>\nПолучатель: ${esc(who?.name ?? '')}\n` +
+          `Заказы: ${who?.orders ? 'да' : 'нет'} · Технические оповещения: ${who?.alerts ? 'да' : 'нет'}`,
+      );
+    }
+  }
+
+  /**
+   * Разослать всем чатам. Каждому отдельно и независимо: неверный номер или
+   * бот, выкинутый из группы, не должны лишить уведомления остальных.
+   */
+  private async broadcast(
+    chatIds: string[],
+    text: string,
+    replyMarkup?: unknown,
+  ): Promise<void> {
+    for (const chatId of chatIds) {
+      await this.send(chatId, text, replyMarkup);
     }
   }
 
@@ -98,7 +165,16 @@ export class TelegramService {
           ],
         }
       : undefined;
-    await this.send(this.chatId, buildNewOrderMessage(o), replyMarkup);
+    const chats = recipientsFor('order', await this.recipients(), {
+      adminChatId: this.chatId,
+    });
+    if (chats.length === 0) {
+      this.log.warn(
+        `Заказ ${o.orderNumber}: некому отправить уведомление — нет получателей с галочкой «Заказы»`,
+      );
+      return;
+    }
+    await this.broadcast(chats, buildNewOrderMessage(o), replyMarkup);
   }
 
   /**
@@ -107,8 +183,11 @@ export class TelegramService {
    * не бросает исключение — мониторинг не должен ронять фоновые задачи.
    */
   async alert(subject: string, detail?: string): Promise<void> {
-    if (!this.token || !this.alertChatId) return;
-    await this.send(this.alertChatId, buildAlertMessage(subject, detail));
+    if (!this.token) return;
+    const chats = recipientsFor('alert', await this.recipients(), {
+      alertChatId: this.alertChatId,
+    });
+    await this.broadcast(chats, buildAlertMessage(subject, detail));
   }
 
   /** Отправка одного сообщения. Свои ошибки только логирует, не пробрасывает. */
