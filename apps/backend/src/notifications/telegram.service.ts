@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StrapiService } from '../strapi/strapi.service';
 import { newcomers, recipientsFor, type Recipient } from './recipients';
@@ -61,7 +66,7 @@ export function buildNewOrderMessage(o: NewOrderNotice): string {
  * Нативный fetch, без внешних зависимостей.
  */
 @Injectable()
-export class TelegramService {
+export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(TelegramService.name);
   private readonly token: string;
   private readonly chatId: string;
@@ -74,6 +79,8 @@ export class TelegramService {
   private cache: { at: number; list: Recipient[] } | null = null;
   /** Состав прошлого чтения — по нему видно, кто появился (см. newcomers). */
   private known: Set<string> | null = null;
+  /** Фоновый опрос списка получателей. */
+  private poller: NodeJS.Timeout | null = null;
 
   constructor(
     config: ConfigService,
@@ -95,30 +102,59 @@ export class TelegramService {
   }
 
   /**
-   * Получатели из админки. Ошибку Strapi проглатываем сознательно: список —
-   * дополнение к адресам из настроек сервера, и недоступность админки не должна
-   * гасить уведомления совсем (для оповещений аварийный адрес всё равно в игре).
+   * Фоновое обновление списка.
+   *
+   * Без него список читался бы ТОЛЬКО в момент отправки уведомления — то есть
+   * добавленный в админке человек не узнал бы о себе до следующего заказа, а
+   * первый получатель вообще никогда: на первом чтении состав запоминается
+   * молча (см. newcomers), и без повторных чтений «новичком» стать некому.
+   * Поэтому опрашиваем раз в минуту: проверочное сообщение приходит вскоре
+   * после сохранения, как и обещано в подсказке под полем в админке.
    */
-  private async recipients(): Promise<Recipient[]> {
-    if (this.cache && Date.now() - this.cache.at < 60_000) return this.cache.list;
-    let list: Recipient[] = [];
+  onModuleInit(): void {
+    if (!this.enabled) return;
+    void this.refresh();
+    this.poller = setInterval(() => void this.refresh(), 60_000);
+    // Не держим процесс живым только ради опроса.
+    this.poller.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.poller) clearInterval(this.poller);
+  }
+
+  /**
+   * Перечитать получателей из админки. Ошибку Strapi проглатываем сознательно:
+   * список — дополнение к адресам из настроек сервера, и недоступность админки
+   * не должна гасить уведомления совсем (для оповещений аварийный адрес всё
+   * равно в игре). При сбое продолжаем жить на прошлом успешном списке.
+   */
+  private async refresh(): Promise<Recipient[]> {
     try {
-      list = (await this.strapi.notificationRecipients()).map((row) => ({
-        chatId: String(row.chatId ?? '').trim(),
-        name: String(row.name ?? '').trim(),
-        orders: row.orders === true,
-        alerts: row.alerts === true,
-        enabled: row.enabled !== false,
-      }));
+      const list: Recipient[] = (await this.strapi.notificationRecipients()).map(
+        (row) => ({
+          chatId: String(row.chatId ?? '').trim(),
+          name: String(row.name ?? '').trim(),
+          orders: row.orders === true,
+          alerts: row.alerts === true,
+          enabled: row.enabled !== false,
+        }),
+      );
       this.cache = { at: Date.now(), list };
       await this.greetNewcomers(list);
+      return list;
     } catch (err) {
       this.log.warn(
         `Не удалось прочитать получателей уведомлений: ${(err as Error).message}`,
       );
-      if (this.cache) return this.cache.list;
+      return this.cache?.list ?? [];
     }
-    return list;
+  }
+
+  /** Список для отправки: свежий кеш или перечитать. */
+  private async recipients(): Promise<Recipient[]> {
+    if (this.cache && Date.now() - this.cache.at < 60_000) return this.cache.list;
+    return this.refresh();
   }
 
   /** Проверочное сообщение тем, кого добавили после запуска сервера. */
