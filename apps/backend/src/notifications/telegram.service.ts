@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { StrapiService } from '../strapi/strapi.service';
 import { newcomers, recipientsFor, type Recipient } from './recipients';
+import { withTransportRetry } from './retry';
 
 /** Данные заказа для уведомления магазину. */
 export interface NewOrderNotice {
@@ -239,13 +240,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     };
     if (replyMarkup) body.reply_markup = replyMarkup;
     try {
-      const res = await fetch(
-        `https://api.telegram.org/bot${this.token}/sendMessage`,
-        {
+      // Повтор только при транспортном сбое: одно уведомление уже потерялось
+      // из-за разового «fetch failed», а второго шанса у него не было
+      // (см. retry.ts). Отказ сервера повтором не лечится и не повторяется.
+      const res = await withTransportRetry(() =>
+        fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-        },
+        }),
       );
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
@@ -254,7 +257,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         );
       }
     } catch (err) {
-      this.log.warn(`Telegram недоступен: ${(err as Error).message}`);
+      this.log.warn(
+        `Telegram недоступен даже после повтора: ${(err as Error).message}`,
+      );
     }
   }
 }
