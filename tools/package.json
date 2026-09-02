@@ -1,0 +1,6 @@
+{
+  "name": "altai-tools",
+  "private": true,
+  "description": "Сборка документов заказчику: markdown -> Word",
+  "dependencies": { "docx": "^9.0.0" }
+}
