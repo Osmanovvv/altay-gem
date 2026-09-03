@@ -8,6 +8,7 @@ import {
 import { relationSlugs, StrapiService } from '../strapi/strapi.service';
 import { CatalogService, ProductCard } from './catalog.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
+import { sortCards, type SortKey } from './sort-cards';
 
 /** Публичный API витрины и Mini App (ТЗ р.9). */
 @Controller()
@@ -47,14 +48,9 @@ export class CatalogController {
       );
     }
 
-    const sort = query.sort ?? 'price_asc';
-    const sorters: Record<string, (a: ProductCard, b: ProductCard) => number> =
-      {
-        price_asc: (a, b) => a.priceRub - b.priceRub,
-        price_desc: (a, b) => b.priceRub - a.priceRub,
-        name: (a, b) => a.name.localeCompare(b.name, 'ru'),
-      };
-    items = [...items].sort(sorters[sort]);
+    // Наличие важнее выбранной сортировки: иначе на большом каталоге наверх
+    // всплывает распроданное (см. sort-cards.ts).
+    items = sortCards(items, (query.sort ?? 'price_asc') as SortKey);
 
     const page = query.page ?? 1;
     const perPage = query.perPage ?? 12;
