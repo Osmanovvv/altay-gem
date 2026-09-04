@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import type { Product } from "@/data/products";
 import { ProductCard } from "./ProductCard";
+import { entranceInitial } from "@/lib/entrance";
+import { useHydrated } from "@/hooks/useHydrated";
 
 interface ProductGridProps {
   products: Product[];
@@ -9,6 +11,7 @@ interface ProductGridProps {
 }
 
 export function ProductGrid({ products, onAdd }: ProductGridProps) {
+  const hydrated = useHydrated();
   // Единая сетка — 3 карточки в ряд на десктопе, без переключателя вида.
   const cols = "grid-cols-2 md:grid-cols-3";
 
@@ -52,12 +55,16 @@ export function ProductGrid({ products, onAdd }: ProductGridProps) {
           <motion.div
             key={p.id}
             layout
-            initial={{ opacity: 0, y: 16 }}
+            // На первой отрисовке анимации нет: framer-motion иначе сериализует
+            // opacity:0 в SSR-разметку и каталог приезжает невидимым
+            // (см. lib/entrance.ts). Лесенку по delay тоже держим только после
+            // гидратации — на первом экране она добавляла до 320 мс пустоты.
+            initial={entranceInitial(hydrated, 16)}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{
               duration: 0.35,
-              delay: Math.min(i, 8) * 0.04,
+              delay: hydrated ? Math.min(i, 8) * 0.04 : 0,
               ease: "easeOut",
             }}
           >

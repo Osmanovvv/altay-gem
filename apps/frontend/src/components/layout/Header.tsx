@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, Phone, Search, ShoppingBag, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useCart } from "@/context/CartContext";
+import { cartUnitCount } from "@/lib/cart-count";
 
 const NAV_LINKS = [
   { label: "Каталог", to: "/catalog" },
@@ -25,10 +26,12 @@ export function Header({ phone: phoneProp }: HeaderProps) {
   const phone = (phoneProp ?? settings?.contacts?.phone)?.trim();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  // Бейдж шапки — число ПОЗИЦИЙ корзины (ТЗ 6.1), не сумма количеств:
-  // 3 банки сметаны = «1» на значке. Суммы остаются в корзине/чекауте.
+  // Бейдж шапки — число ШТУК, а не позиций. ТЗ 6.1 просило «счётчик позиций»,
+  // и так и было сделано, но на проверке это провалилось: шестнадцать нажатий
+  // «В корзину» по одному товару оставляли на значке «1», и кнопка выглядела
+  // сломанной. Отступление от ТЗ 6.1 согласовано (см. lib/cart-count.ts).
   const { items } = useCart();
-  const cartCount = items.length;
+  const cartCount = cartUnitCount(items);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);

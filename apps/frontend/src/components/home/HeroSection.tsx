@@ -5,6 +5,8 @@ import { useChannel } from "@/context/ChannelContext";
 import { catalogTo, productTo, promoTo } from "@/lib/channel-routes";
 import { HOME_ASSETS } from "@/data/homeAssets";
 import type { Product } from "@/data/products";
+import { entranceInitial } from "@/lib/entrance";
+import { useHydrated } from "@/hooks/useHydrated";
 
 export interface HeroTrust {
   yandexRating?: number;
@@ -20,6 +22,8 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
+  // Первый экран не гасим в SSR-разметке — см. lib/entrance.ts.
+  const hydrated = useHydrated();
   // Те же секции рисуются и на сайте, и внутри мини-аппа MAX — ссылки
   // должны вести в свой канал, иначе из приложения выбрасывает на сайт.
   const channel = useChannel();
@@ -59,7 +63,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
       <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-24 md:px-8 md:py-32 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div>
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={entranceInitial(hydrated, 10)}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             className="inline-flex items-center gap-2 rounded-full border px-4 py-1.5"
@@ -90,7 +94,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
             {titleLines.map((line, i) => (
               <motion.span
                 key={line}
-                initial={{ opacity: 0, y: 24 }}
+                initial={entranceInitial(hydrated, 24)}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, delay: 0.15 + i * 0.2, ease: "easeOut" }}
                 style={{ display: "block" }}
@@ -101,7 +105,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
           </h1>
 
           <motion.p
-            initial={{ opacity: 0, y: 12 }}
+            initial={entranceInitial(hydrated, 12)}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.6 }}
             className="mt-6 text-lg md:text-xl"
@@ -117,7 +121,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
           </motion.p>
 
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            initial={entranceInitial(hydrated, 12)}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.8 }}
             className="mt-10 flex flex-wrap items-center gap-4"
@@ -164,7 +168,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
 
           {/* Trust line — социальное доказательство из утверждённого ТЗ */}
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
+            initial={entranceInitial(hydrated, 8)}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 1.0 }}
             className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2"
@@ -202,7 +206,7 @@ export function HeroSection({ product, photoUrl, trust }: HeroSectionProps) {
 
         {featuredProduct && (
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
+            initial={entranceInitial(hydrated, 18)}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.9, ease: "easeOut" }}
             className="w-full max-w-sm justify-self-start lg:justify-self-end"

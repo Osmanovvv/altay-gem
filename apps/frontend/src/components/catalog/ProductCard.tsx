@@ -1,4 +1,6 @@
 import { motion } from "framer-motion";
+import { entranceInitial } from "@/lib/entrance";
+import { useHydrated } from "@/hooks/useHydrated";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
 import type { Product } from "@/data/products";
 import { useCart } from "@/context/CartContext";
@@ -29,10 +31,13 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
   // выше старой, и тогда зачёркивать нечего (см. lib/price-view.ts).
   const oldPrice = strikePrice(p.price, p.oldPrice);
   const { items, updateQuantity } = useCart();
+  const hydrated = useHydrated();
   const cartItem = items.find((i) => i.product.id === p.id);
   return (
     <motion.article
-      initial={{ opacity: 0, y: 12 }}
+      // Карточка анимировалась ВТОРОЙ раз поверх обёртки из ProductGrid, и
+      // обе гасили себя в SSR-разметке (см. lib/entrance.ts).
+      initial={entranceInitial(hydrated, 12)}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
       whileHover={{ y: -4 }}

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { entranceInitial } from "@/lib/entrance";
+import { useHydrated } from "@/hooks/useHydrated";
 
 interface ProductGalleryProps {
   baseImage: string; // CSS-фон: фото поверх градиента либо градиент (фолбэк)
@@ -10,6 +12,8 @@ interface ProductGalleryProps {
 }
 
 export function ProductGallery({ baseImage, photos = [], name, badges = [] }: ProductGalleryProps) {
+  // Главное фото товара приезжало с opacity:0 и ждало ~150 КБ JS — см. lib/entrance.ts.
+  const hydrated = useHydrated();
   // Каждое фото рисуем поверх фолбэка (градиента), пока файл не загрузился
   const variants = photos.length
     ? photos.map((p) => `url("${p}") center/cover no-repeat, ${baseImage}`)
@@ -60,7 +64,7 @@ export function ProductGallery({ baseImage, photos = [], name, badges = [] }: Pr
         <AnimatePresence mode="wait">
           <motion.div
             key={active}
-            initial={{ opacity: 0 }}
+            initial={entranceInitial(hydrated, 0)}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}

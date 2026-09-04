@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { MapPin, Minus, Plus, ShoppingBag, Truck } from "lucide-react";
 import type { Product } from "@/data/products";
 import { strikePrice } from "@/lib/price-view";
+import { productChips } from "@/lib/product-chips";
 
 /** Данные карточки, приходящие из API (характеристики, остаток, описание). */
 export interface ProductInfoDetail {
@@ -55,10 +56,14 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Category chips */}
+      {/* Чипы категории и подкатегории. Дубль срезает productChips:
+          адаптер витрины подставляет вместо пустой подкатегории имя категории
+          (это нужно карточке каталога и MAX), и на странице товара выходило
+          «ЗДОРОВЬЕ АЛТАЯ» дважды подряд. */}
       <div className="flex flex-wrap items-center gap-2">
-        {detail.categoryName && (
+        {productChips(detail.categoryName, product.subcategory).map((chip, i) => (
           <Link
+            key={chip}
             to="/catalog"
             className="rounded-full transition-colors hover:bg-black/5"
             style={{
@@ -67,30 +72,14 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
               fontWeight: 600,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
-              color: "var(--color-accent-dark)",
-              backgroundColor: "rgba(200,150,62,0.12)",
+              color: i === 0 ? "var(--color-accent-dark)" : "var(--color-text-muted)",
+              backgroundColor: i === 0 ? "rgba(200,150,62,0.12)" : "rgba(31,26,14,0.05)",
               padding: "5px 11px",
             }}
           >
-            {detail.categoryName}
+            {chip}
           </Link>
-        )}
-        <Link
-          to="/catalog"
-          className="rounded-full transition-colors hover:bg-black/5"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: "var(--color-text-muted)",
-            backgroundColor: "rgba(31,26,14,0.05)",
-            padding: "5px 11px",
-          }}
-        >
-          {product.subcategory}
-        </Link>
+        ))}
       </div>
 
       <h1

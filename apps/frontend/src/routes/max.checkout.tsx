@@ -11,6 +11,7 @@ import { insideMax, maxBridge, openExternal } from "@/lib/max-bridge";
 import { contactPhoneDigits, prefill, profileName } from "@/lib/max-profile";
 import {
   CONSENT_LINK_TEXT,
+  contactsNotice,
   PICKUP_POINTS,
   consentPrefix,
   isPickupMethod,
@@ -209,7 +210,9 @@ function MaxCheckout() {
       });
     } catch (err: unknown) {
       setFormError(
-        err instanceof ApiError ? String(err.message) : "Не удалось оформить заказ — попробуйте ещё раз",
+        err instanceof ApiError
+          ? String(err.message)
+          : "Не удалось оформить заказ — попробуйте ещё раз",
       );
     } finally {
       setSubmitting(false);
@@ -270,10 +273,7 @@ function MaxCheckout() {
             </button>
           )}
         </Field>
-        <Field
-          label={payment === "online" ? "E-mail (для чека)" : "E-mail"}
-          error={errors.email}
-        >
+        <Field label={payment === "online" ? "E-mail (для чека)" : "E-mail"} error={errors.email}>
           <input
             type="email"
             inputMode="email"
@@ -283,6 +283,16 @@ function MaxCheckout() {
             style={inputStyle(!!errors.email)}
           />
         </Field>
+        {/* То же, что на витрине: оговорка там, где данные собирают. */}
+        <p style={{ fontSize: 12, lineHeight: 1.45, color: "var(--color-text-muted)" }}>
+          {contactsNotice()}{" "}
+          <Link
+            to="/privacy"
+            style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}
+          >
+            {CONSENT_LINK_TEXT}
+          </Link>
+        </p>
       </Section>
 
       <Section title="Получение">
@@ -310,7 +320,9 @@ function MaxCheckout() {
             selected={delivery === "russia"}
             onSelect={() => setDelivery("russia")}
             title="Доставка по России"
-            note={hasPerishable() ? "Недоступно: есть скоропортящиеся товары" : "СДЭК / Почта России"}
+            note={
+              hasPerishable() ? "Недоступно: есть скоропортящиеся товары" : "СДЭК / Почта России"
+            }
             disabled={hasPerishable()}
           />
         </div>
@@ -378,11 +390,23 @@ function MaxCheckout() {
       >
         <Row label="Товары" value={formatPrice(total + promoDiscount)} />
         {promoDiscount > 0 && (
-          <Row label={`Промокод ${promoCode ?? ""}`} value={`− ${formatPrice(promoDiscount)}`} accent />
+          <Row
+            label={`Промокод ${promoCode ?? ""}`}
+            value={`− ${formatPrice(promoDiscount)}`}
+            accent
+          />
         )}
         <Row
           label="Доставка"
-          value={!delivery ? "—" : quote ? (deliveryRub === 0 ? "бесплатно" : formatPrice(deliveryRub)) : "считаем…"}
+          value={
+            !delivery
+              ? "—"
+              : quote
+                ? deliveryRub === 0
+                  ? "бесплатно"
+                  : formatPrice(deliveryRub)
+                : "считаем…"
+          }
         />
         <div
           className="mt-2 flex items-baseline justify-between"

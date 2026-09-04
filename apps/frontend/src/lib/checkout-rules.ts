@@ -11,11 +11,7 @@
  * защита. Защита — на бэкенде.
  */
 
-export type ReceivingMethod =
-  | "pickup_leningradskaya"
-  | "pickup_titova"
-  | "courier_nsk"
-  | "russia";
+export type ReceivingMethod = "pickup_leningradskaya" | "pickup_titova" | "courier_nsk" | "russia";
 
 export type PaymentMethod = "online" | "cash_on_pickup" | "card_on_pickup";
 
@@ -119,10 +115,7 @@ export interface ReceivingErrors {
 }
 
 /** Шаг «Получение». Адрес нужен только там, где заказ везут. */
-export function validateReceiving(input: {
-  delivery: string;
-  address: string;
-}): ReceivingErrors {
+export function validateReceiving(input: { delivery: string; address: string }): ReceivingErrors {
   const errors: ReceivingErrors = {};
   if (!input.delivery) {
     errors.delivery = "Выберите способ получения";
@@ -132,4 +125,19 @@ export function validateReceiving(input: {
     errors.address = "Укажите адрес доставки";
   }
   return errors;
+}
+
+/**
+ * Оговорка о персональных данных на шаге, ГДЕ ИХ СОБИРАЮТ.
+ *
+ * Согласие у кнопки отправки (consentPrefix) остаётся на месте — юридически
+ * оно привязано к действию. Но проверяющий заполнил контакты, застрял на шаге
+ * доставки из-за нехватки остатка и написал «нет согласия с обработкой
+ * персональных данных»: до третьего шага он просто не дошёл. Здесь текст
+ * ничего не «подтверждает» — нажимать на этом шаге нечего, — а объясняет,
+ * зачем данные, и ведёт к политике. Строка обрывается на предлоге: следом в
+ * разметке идёт ссылка CONSENT_LINK_TEXT.
+ */
+export function contactsNotice(): string {
+  return "Данные нужны, чтобы оформить и доставить заказ. Мы обрабатываем их в соответствии с";
 }

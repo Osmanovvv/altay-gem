@@ -317,7 +317,11 @@ export function gradientFor(key: string | null): string {
 
 /** ApiCard -> Product витрины: фото поверх градиента, цены в рублях. */
 export function toProduct(c: ApiCard): Product {
-  const grad = gradientFor(c.categorySlug);
+  // Ключ по товару, а не по категории. Раньше все карточки одной категории
+  // получали ОДИН цвет, и страница категории превращалась в стену одинаковых
+  // прямоугольников — у «Мёда» все 11 товаров золотые, у «Сладостей» все 12
+  // охряные. Фото сейчас есть у 8 товаров из 577, так что видно именно это.
+  const grad = gradientFor(c.slug || c.categorySlug);
   return {
     id: c.slug,
     name: c.name,

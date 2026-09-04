@@ -25,7 +25,12 @@ import {
   phoneDigits,
   significantDigitsBeforeCaret,
 } from "@/lib/phone-mask";
-import { CONSENT_LINK_TEXT, consentPrefix, submitLabelFor } from "@/lib/checkout-rules";
+import {
+  CONSENT_LINK_TEXT,
+  consentPrefix,
+  contactsNotice,
+  submitLabelFor,
+} from "@/lib/checkout-rules";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -519,6 +524,29 @@ function CheckoutPage() {
                             />
                           }
                         />
+                        {/* Оговорка о ПД там, где данные собирают. Согласие у
+                            кнопки отправки остаётся на шаге 3 — здесь нажимать
+                            нечего, поэтому текст объясняет, а не подтверждает. */}
+                        <p
+                          className="mt-1"
+                          style={{
+                            fontFamily: "var(--font-body)",
+                            fontSize: 12,
+                            lineHeight: 1.45,
+                            color: "var(--color-text-muted)",
+                          }}
+                        >
+                          {contactsNotice()}{" "}
+                          <Link
+                            to="/privacy"
+                            style={{
+                              color: "var(--color-accent-dark)",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            {CONSENT_LINK_TEXT}
+                          </Link>
+                        </p>
                       </StepCard>
                     )}
 
