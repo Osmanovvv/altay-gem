@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -16,6 +16,7 @@ import type { Product } from "@/data/products";
 
 import { useCart } from "@/context/CartContext";
 import { fetchCatalog, fetchCategories, toCategory, toProduct, type CatalogQuery } from "@/lib/api";
+import { GAP, pageItems as pageNumbers } from "@/lib/pagination";
 
 const SORT_MAP: Record<SortKey, CatalogQuery["sort"]> = {
   "price-asc": "price_asc",
@@ -128,6 +129,15 @@ function CatalogPage() {
   const pages = data.pagination.pageCount;
   const safePage = Math.min(page, pages);
   const totalCount = data.pagination.total;
+
+  // Переход по страницам: прокручиваем к началу списка, иначе после нажатия
+  // покупатель остаётся внизу и не видит, что товары сменились.
+  const goToPage = (n: number) => {
+    const target = Math.min(Math.max(n, 1), pages);
+    if (target === safePage) return;
+    setPage(target);
+    window.scrollTo({ top: 200, behavior: "smooth" });
+  };
 
   const updateFilters = (next: CatalogFilterState) => {
     setFilters(next);
@@ -324,39 +334,59 @@ function CatalogPage() {
                 <ProductGrid products={pageItems} onAdd={onAdd} />
               )}
 
+              {/* Номера страниц: только края и окрестности текущей. Рисовать их
+                  подряд было можно, пока каталог помещался на пару страниц; на
+                  сорока девяти внизу вырастало поле кружков во весь экран
+                  телефона. Стрелки — чтобы листать подряд, не целясь в кружок. */}
               {pages > 1 && (
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  {Array.from({ length: pages }).map((_, i) => {
-                    const n = i + 1;
-                    const active = n === safePage;
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => {
-                          setPage(n);
-                          window.scrollTo({ top: 200, behavior: "smooth" });
-                        }}
-                        className="inline-flex items-center justify-center rounded-full transition-colors"
+                <nav
+                  aria-label="Страницы каталога"
+                  className="mt-6 flex items-center justify-center gap-1.5"
+                >
+                  <PagerButton
+                    disabled={safePage <= 1}
+                    onClick={() => goToPage(safePage - 1)}
+                    label="Предыдущая страница"
+                  >
+                    <ChevronLeft size={17} />
+                  </PagerButton>
+
+                  {pageNumbers(safePage, pages).map((item, i) =>
+                    item === GAP ? (
+                      <span
+                        key={`gap-${i}`}
+                        aria-hidden
+                        className="inline-flex items-center justify-center"
                         style={{
-                          minWidth: 44,
+                          minWidth: 22,
                           height: 44,
-                          padding: "0 14px",
+                          color: "var(--color-text-muted)",
                           fontFamily: "var(--font-body)",
-                          fontWeight: 600,
-                          fontSize: 14,
-                          backgroundColor: active ? "var(--color-accent)" : "transparent",
-                          color: active ? "var(--color-bg-dark)" : "var(--color-text)",
-                          border: active
-                            ? "1px solid var(--color-accent)"
-                            : "1px solid rgba(31,26,14,0.12)",
                         }}
                       >
-                        {n}
-                      </button>
-                    );
-                  })}
-                </div>
+                        …
+                      </span>
+                    ) : (
+                      <PagerButton
+                        key={item}
+                        active={item === safePage}
+                        onClick={() => goToPage(item)}
+                        label={`Страница ${item}`}
+                        current={item === safePage}
+                      >
+                        {item}
+                      </PagerButton>
+                    ),
+                  )}
+
+                  <PagerButton
+                    disabled={safePage >= pages}
+                    onClick={() => goToPage(safePage + 1)}
+                    label="Следующая страница"
+                  >
+                    <ChevronRight size={17} />
+                  </PagerButton>
+                </nav>
               )}
             </div>
           </div>
@@ -446,5 +476,48 @@ function CatalogPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+
+/** Кнопка нумерации: номер, стрелка или неактивный край. */
+function PagerButton({
+  children,
+  onClick,
+  label,
+  active = false,
+  disabled = false,
+  current = false,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  current?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-current={current ? "page" : undefined}
+      className="inline-flex items-center justify-center rounded-full transition-colors disabled:opacity-35"
+      style={{
+        minWidth: 40,
+        height: 40,
+        padding: "0 10px",
+        fontFamily: "var(--font-body)",
+        fontWeight: 600,
+        fontSize: 14,
+        fontVariantNumeric: "tabular-nums",
+        backgroundColor: active ? "var(--color-accent)" : "transparent",
+        color: active ? "var(--color-bg-dark)" : "var(--color-text)",
+        border: active ? "1px solid var(--color-accent)" : "1px solid rgba(31,26,14,0.12)",
+      }}
+    >
+      {children}
+    </button>
   );
 }
