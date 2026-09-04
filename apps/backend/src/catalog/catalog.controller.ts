@@ -9,6 +9,7 @@ import { relationSlugs, StrapiService } from '../strapi/strapi.service';
 import { CatalogService, ProductCard } from './catalog.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { sortCards, type SortKey } from './sort-cards';
+import { matchesQuery } from './search-text';
 
 /** Публичный API витрины и Mini App (ТЗ р.9). */
 @Controller()
@@ -38,14 +39,10 @@ export class CatalogController {
       items = items.filter((c) => c.inStock);
     }
     if (query.q) {
-      const q = query.q.toLowerCase();
-      // Поиск по названию, подкатегории и описанию (ТЗ 6.9)
-      items = items.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.subcategory ?? '').toLowerCase().includes(q) ||
-          (c.shortDescription ?? '').toLowerCase().includes(q),
-      );
+      // Поиск по названию, подкатегории и описанию (ТЗ 6.9). Сравнение с
+      // приведением «ё» к «е» — иначе «мёд» не находит «Мед» из кассы
+      // (см. search-text.ts).
+      items = items.filter((c) => matchesQuery(c, query.q!));
     }
 
     // Наличие важнее выбранной сортировки: иначе на большом каталоге наверх
