@@ -16,10 +16,19 @@
  *      атрибут HTML и класс, который понимает Google;
  *   3) `<meta name="google" content="notranslate">` — запрет для страницы.
  * Переводить панель нечего: она и так по-русски.
+ *
+ * Скрипт — ОТДЕЛЬНЫМ файлом, не инлайном: CSP панели — script-src 'self',
+ * и инлайн браузер молча блокирует (проверено на боевом). Файл кладёт в
+ * сборку vite.config.ts и передаёт сюда его адрес.
  */
 const LANGUAGE_KEY = 'strapi-admin-language';
 
-export function russianNoTranslate(html: string): string {
+/** Содержимое внешнего файла. try/catch — приватный режим не должен ронять панель. */
+export const RUSSIAN_DEFAULT_SCRIPT =
+  `try{localStorage.getItem('${LANGUAGE_KEY}')||` +
+  `localStorage.setItem('${LANGUAGE_KEY}','ru')}catch(e){}`;
+
+export function russianNoTranslate(html: string, scriptSrc: string): string {
   const withLang = html.replace(
     /<html\b([^>]*)\slang="[^"]*"/,
     '<html$1 lang="ru" translate="no" class="notranslate"',
@@ -29,11 +38,8 @@ export function russianNoTranslate(html: string): string {
       'Шаблон панели Strapi не содержит <html lang="…"> — проверьте russian-html.ts',
     );
   }
-  const defaultRussian =
-    `<script>try{localStorage.getItem('${LANGUAGE_KEY}')||` +
-    `localStorage.setItem('${LANGUAGE_KEY}','ru')}catch(e){}</script>`;
   return withLang.replace(
     /<head>/,
-    `<head><meta name="google" content="notranslate"/>${defaultRussian}`,
+    `<head><meta name="google" content="notranslate"/><script src="${scriptSrc}"></script>`,
   );
 }
