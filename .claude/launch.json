@@ -4,9 +4,22 @@
     {
       "name": "frontend-dev",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "cwd": "apps/frontend",
       "port": 8080
+    },
+    {
+      "name": "strapi-local",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
+      "cwd": "apps/strapi",
+      "port": 1337
     }
   ]
 }
