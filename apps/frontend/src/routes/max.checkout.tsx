@@ -3,9 +3,11 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, Check } from "lucide-react";
 
 import { useCart } from "@/context/CartContext";
+import { usePhoneMask } from "@/hooks/usePhoneMask";
 import { ApiError, createOrder, quoteDelivery } from "@/lib/api";
 import type { ApiDeliveryQuote } from "@/lib/api";
-import { formatPhoneDigits, phoneDigits } from "@/lib/phone-mask";
+import { orderProblemLines, priceUpdates } from "@/lib/order-problems";
+import { formatPhoneDigits } from "@/lib/phone-mask";
 import { maxOrderHeaders } from "@/lib/max-app";
 import { insideMax, maxBridge, openExternal } from "@/lib/max-bridge";
 import { contactPhoneDigits, prefill, profileName } from "@/lib/max-profile";
@@ -42,12 +44,21 @@ export const Route = createFileRoute("/max/checkout")({
 type Receiving = "" | "pickup_leningradskaya" | "pickup_titova" | "courier_nsk" | "russia";
 
 function MaxCheckout() {
-  const { items, getCartTotal, getPromoDiscount, hasPerishable, promoCode, clearCart, ready } =
-    useCart();
+  const {
+    items,
+    addToCart,
+    getCartTotal,
+    getPromoDiscount,
+    hasPerishable,
+    promoCode,
+    clearCart,
+    ready,
+  } = useCart();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const phoneMask = usePhoneMask(phone, setPhone);
   const [email, setEmail] = useState("");
   const [delivery, setDelivery] = useState<Receiving>("");
   const [address, setAddress] = useState("");
@@ -195,25 +206,52 @@ function MaxCheckout() {
       }
       clearCart();
 
+      const toOrder = () =>
+        void navigate({
+          to: "/max/order/$id",
+          params: { id: String(res.id) },
+          search: { token: res.accessToken },
+        });
+
       if (res.paymentUrl) {
         // Внутри MAX — только через мост: страница оплаты запрещает показ во
         // фрейме, и подмена адреса оставила бы покупателя с пустым экраном.
-        openExternal(res.paymentUrl, maxBridge(), (u) => {
+        const viaBridge = openExternal(res.paymentUrl, maxBridge(), (u) => {
           window.location.href = u;
         });
+        // Оплата ушла во внешний браузер, а мини-апп остался на экране с уже
+        // пустой корзиной — без перехода покупатель возвращался на оформление
+        // с «Оплатить 0 ₽». Ведём на статус заказа: там видно, прошла ли
+        // оплата, и есть «Оплатить заказ», если страницу оплаты закрыли.
+        if (viaBridge) toOrder();
         return;
       }
-      void navigate({
-        to: "/max/order/$id",
-        params: { id: String(res.id) },
-        search: { token: res.accessToken },
-      });
+      toOrder();
     } catch (err: unknown) {
-      setFormError(
-        err instanceof ApiError
-          ? String(err.message)
-          : "Не удалось оформить заказ — попробуйте ещё раз",
-      );
+      if (err instanceof ApiError) {
+        const nameOf = (id?: string) =>
+          items.find((i) => i.product.id === id)?.product.name ?? id ?? "товар";
+        // Цена в кассе изменилась — подставляем новую в корзину: сводка
+        // пересчитается, и повторное нажатие оформит заказ по новой цене. В
+        // мини-аппе иначе не починить: «±» меняет только количество, а цену
+        // обновляет лишь повторное добавление товара (addToCart).
+        const updates = priceUpdates(err.body.details);
+        for (const u of updates) {
+          const item = items.find((i) => i.product.id === u.id);
+          if (item) addToCart({ ...item.product, price: u.priceRub }, 0);
+        }
+        setFormError(
+          [
+            String(err.message),
+            ...orderProblemLines(err.body.details, nameOf),
+            ...(updates.length > 0
+              ? ["Цены в корзине обновлены — проверьте сумму и нажмите ещё раз"]
+              : []),
+          ].join("\n"),
+        );
+      } else {
+        setFormError("Не удалось оформить заказ — попробуйте ещё раз");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -247,10 +285,12 @@ function MaxCheckout() {
         </Field>
         <Field label="Телефон" error={errors.phone}>
           <input
+            ref={phoneMask.ref}
             type="tel"
             inputMode="tel"
             value={phone}
-            onChange={(e) => setPhone(formatPhoneDigits(phoneDigits(e.target.value)))}
+            onChange={phoneMask.onChange}
+            onKeyDown={phoneMask.onKeyDown}
             placeholder="+7 (___) ___-__-__"
             style={inputStyle(!!errors.phone)}
           />
@@ -652,7 +692,13 @@ function ErrorText({ children }: { children: React.ReactNode }) {
   return (
     <p
       className="mt-2"
-      style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--color-error)" }}
+      style={{
+        fontFamily: "var(--font-body)",
+        fontSize: 13,
+        color: "var(--color-error)",
+        // ошибка оформления может перечислять позиции — каждая с новой строки
+        whiteSpace: "pre-line",
+      }}
     >
       {children}
     </p>

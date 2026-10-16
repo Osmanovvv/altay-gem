@@ -39,8 +39,10 @@ describe("переход на внешнюю страницу оплаты", () 
   test("внутри MAX — через мост, без подмены адреса", () => {
     const opened: string[] = [];
     const fellBack: string[] = [];
-    openExternal("https://yoomoney.ru/checkout/1", inMax((u) => opened.push(u)), (u) =>
-      fellBack.push(u),
+    openExternal(
+      "https://yoomoney.ru/checkout/1",
+      inMax((u) => opened.push(u)),
+      (u) => fellBack.push(u),
     );
     expect(opened).toEqual(["https://yoomoney.ru/checkout/1"]);
     expect(fellBack).toEqual([]);
@@ -71,10 +73,8 @@ describe("переход на внешнюю страницу оплаты", () 
 
   test("старый клиент MAX без openLink — тоже обычный переход, а не тишина", () => {
     const fellBack: string[] = [];
-    openExternal(
-      "https://yoomoney.ru/checkout/4",
-      { initData: "hash=abc" } as MaxBridge,
-      (u) => fellBack.push(u),
+    openExternal("https://yoomoney.ru/checkout/4", { initData: "hash=abc" } as MaxBridge, (u) =>
+      fellBack.push(u),
     );
     expect(fellBack).toEqual(["https://yoomoney.ru/checkout/4"]);
   });
@@ -98,9 +98,53 @@ describe("переход на внешнюю страницу оплаты", () 
   test("пустой адрес игнорируется", () => {
     const opened: string[] = [];
     const fellBack: string[] = [];
-    openExternal("", inMax((u) => opened.push(u)), (u) => fellBack.push(u));
+    openExternal(
+      "",
+      inMax((u) => opened.push(u)),
+      (u) => fellBack.push(u),
+    );
     openExternal("   ", undefined, (u) => fellBack.push(u));
     expect(opened).toEqual([]);
     expect(fellBack).toEqual([]);
+  });
+});
+
+/**
+ * Чекаут мини-аппа по ответу решает, увести ли экран на статус заказа: если
+ * оплату открыл мост, мини-апп остаётся на месте (корзина уже пуста), и без
+ * перехода покупатель возвращался на оформление с «Оплатить 0 ₽».
+ */
+describe("openExternal сообщает, кто открыл оплату", () => {
+  test("мост MAX — true", () => {
+    expect(
+      openExternal(
+        "https://yoomoney.ru/checkout/6",
+        inMax(() => {}),
+        () => {},
+      ),
+    ).toBe(true);
+  });
+
+  test("запасной переход, упавший мост и пустой адрес — false", () => {
+    expect(openExternal("https://yoomoney.ru/checkout/7", undefined, () => {})).toBe(false);
+    expect(
+      openExternal(
+        "https://yoomoney.ru/checkout/8",
+        {
+          initData: "hash=abc",
+          openLink: () => {
+            throw new Error("мост недоступен");
+          },
+        },
+        () => {},
+      ),
+    ).toBe(false);
+    expect(
+      openExternal(
+        "",
+        inMax(() => {}),
+        () => {},
+      ),
+    ).toBe(false);
   });
 });

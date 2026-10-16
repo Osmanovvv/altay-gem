@@ -63,23 +63,28 @@ export function insideMax(bridge: MaxBridge | undefined): boolean {
  *
  * Мост передаётся аргументом, а не берётся изнутри, чтобы поведение можно было
  * проверить тестом без браузера.
+ *
+ * Возвращает true, если страницу открыл мост MAX: она ушла во внешний
+ * браузер, а мини-апп остался на экране — вызывающему решать, куда его
+ * увести. false — сработал запасной переход всей страницы (или адрес пуст).
  */
 export function openExternal(
   url: string,
   bridge: MaxBridge | undefined,
   fallback: (url: string) => void,
-): void {
+): boolean {
   const target = url.trim();
-  if (!target) return;
+  if (!target) return false;
 
   if (insideMax(bridge) && bridge?.openLink) {
     try {
       bridge.openLink(target);
-      return;
+      return true;
     } catch {
       // Мост сломался (старый клиент, изменившийся API) — не оставляем
       // покупателя на месте после нажатия «Оплатить».
     }
   }
   fallback(target);
+  return false;
 }

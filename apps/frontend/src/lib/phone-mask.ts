@@ -61,3 +61,52 @@ export function caretAfterDigit(formatted: string, n: number): number {
   // n=0 — встать перед первой значащей цифрой (сразу за «+7 (»)
   return n <= 0 ? Math.min(4, formatted.length) : formatted.length;
 }
+
+/**
+ * Что делать с клавишей в поле телефона — чистая логика для onKeyDown.
+ * native — удалит браузер сам (слева/справа обычная цифра, есть выделение,
+ * другая клавиша); set — сами убираем значащую цифру за разделителем;
+ * clear — стереть пустую заготовку «+7 (»; noop — удалять нечего, но и
+ * разделитель браузеру не отдаём (маска тут же вернула бы его на место).
+ * Та же логика, что встроена в чекаут сайта (routes/checkout.tsx).
+ */
+export type PhoneKeyAction =
+  | { kind: "native" }
+  | { kind: "noop" }
+  | { kind: "clear" }
+  | { kind: "set"; digits: string; caretDigits: number };
+
+export function phoneKeyAction(
+  value: string,
+  start: number,
+  end: number,
+  key: string,
+): PhoneKeyAction {
+  if (start !== end) return { kind: "native" };
+  const digits = phoneDigits(value);
+  if (key === "Backspace") {
+    if (start === 0) return { kind: "native" };
+    const prev = value[start - 1];
+    // Цифра слева (и это не «7» кода страны) — обычное нативное удаление.
+    if (prev && /\d/.test(prev) && start > 4) return { kind: "native" };
+    const before = significantDigitsBeforeCaret(value, start);
+    if (before === 0) return digits ? { kind: "noop" } : { kind: "clear" };
+    return {
+      kind: "set",
+      digits: digits.slice(0, before - 1) + digits.slice(before),
+      caretDigits: before - 1,
+    };
+  }
+  if (key === "Delete") {
+    const next = value[start];
+    if (next && /\d/.test(next) && start >= 4) return { kind: "native" };
+    const before = significantDigitsBeforeCaret(value, start);
+    if (before >= digits.length) return { kind: "native" }; // справа цифр нет
+    return {
+      kind: "set",
+      digits: digits.slice(0, before) + digits.slice(before + 1),
+      caretDigits: before,
+    };
+  }
+  return { kind: "native" };
+}
