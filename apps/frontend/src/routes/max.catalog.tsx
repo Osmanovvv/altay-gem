@@ -4,12 +4,16 @@ import { Search, X } from "lucide-react";
 
 import { MaxProductRow } from "@/components/max/MaxProductRow";
 import { fetchCatalog, fetchCategories, toProduct } from "@/lib/api";
+import { appendPage, firstPage, hasMore } from "@/lib/catalog-pages";
 import { highlightCategories } from "@/lib/max-app";
 
 interface CatalogSearch {
   category?: string;
   q?: string;
 }
+
+/** Порция каталога — столько бэкенд отдаёт максимум (catalog-query.dto.ts). */
+const PER_PAGE = 48;
 
 /**
  * Каталог мини-аппа (ТЗ р.13): фильтр по категориям + поиск.
@@ -24,7 +28,7 @@ export const Route = createFileRoute("/max/catalog")({
   loaderDeps: ({ search }) => ({ category: search.category, q: search.q }),
   loader: async ({ deps }) => {
     const [catalog, categories] = await Promise.all([
-      fetchCatalog({ category: deps.category, q: deps.q, perPage: 48, sort: "price_asc" }),
+      fetchCatalog({ category: deps.category, q: deps.q, perPage: PER_PAGE, sort: "price_asc" }),
       fetchCategories(),
     ]);
     return { catalog, categories: highlightCategories(categories) };
@@ -37,16 +41,22 @@ function MaxCatalog() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const [data, setData] = useState(initial.catalog);
+  const [list, setList] = useState(() => firstPage(initial.catalog));
   const [query, setQuery] = useState(search.q ?? "");
+  const [loadingMore, setLoadingMore] = useState(false);
   const firstRender = useRef(true);
+  // «Поколение» списка: смена категории или запроса начинает новое, и догрузка,
+  // ушедшая за старым списком, по возвращении не приклеится к новому.
+  const generation = useRef(0);
 
   // Смена категории идёт через навигацию: загрузчик приносит новый список, но
   // локальное состояние об этом не знает и продолжает рисовать старый (баг
   // отловлен живой проверкой: адрес и заголовок менялись, товары — нет).
   // Синхронизируем состояние с данными загрузчика.
   useEffect(() => {
-    setData(initial.catalog);
+    generation.current += 1;
+    setLoadingMore(false);
+    setList(firstPage(initial.catalog));
   }, [initial.catalog]);
 
   // Поиск с задержкой: без неё каждый символ уходит запросом на сервер.
@@ -59,10 +69,14 @@ function MaxCatalog() {
       fetchCatalog({
         category: search.category,
         q: query || undefined,
-        perPage: 48,
+        perPage: PER_PAGE,
         sort: "price_asc",
       })
-        .then(setData)
+        .then((res) => {
+          generation.current += 1;
+          setLoadingMore(false);
+          setList(firstPage(res));
+        })
         .catch(() => {
           /* сеть моргнула — оставляем прежний список, а не пустой экран */
         });
@@ -70,7 +84,30 @@ function MaxCatalog() {
     return () => window.clearTimeout(t);
   }, [query, search.category]);
 
-  const products = useMemo(() => data.items.map(toProduct), [data]);
+  const products = useMemo(() => list.items.map(toProduct), [list.items]);
+
+  // «Показать ещё»: следующая порция того же фильтра дописывается в конец.
+  const loadMore = () => {
+    if (loadingMore || !hasMore(list)) return;
+    const mine = generation.current;
+    setLoadingMore(true);
+    fetchCatalog({
+      category: search.category,
+      q: query || undefined,
+      perPage: PER_PAGE,
+      sort: "price_asc",
+      page: list.page + 1,
+    })
+      .then((res) => {
+        if (generation.current === mine) setList((prev) => appendPage(prev, res));
+      })
+      .catch(() => {
+        /* сеть моргнула — кнопка остаётся, можно нажать ещё раз */
+      })
+      .finally(() => {
+        if (generation.current === mine) setLoadingMore(false);
+      });
+  };
   const activeCategory = initial.categories.find((c) => c.slug === search.category);
 
   const setCategory = (slug?: string) => {
@@ -161,7 +198,7 @@ function MaxCatalog() {
         className="mt-3"
         style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--color-text-muted)" }}
       >
-        Найдено товаров: {data.pagination.total}
+        Найдено товаров: {list.total}
       </p>
 
       {products.length === 0 ? (
@@ -191,11 +228,45 @@ function MaxCatalog() {
           </p>
         </div>
       ) : (
-        <div className="mt-3 flex flex-col gap-3">
-          {products.map((p) => (
-            <MaxProductRow key={p.id} product={p} />
-          ))}
-        </div>
+        <>
+          <div className="mt-3 flex flex-col gap-3">
+            {products.map((p) => (
+              <MaxProductRow key={p.id} product={p} />
+            ))}
+          </div>
+          {hasMore(list) && (
+            <>
+              <p
+                className="mt-4 text-center"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: 12,
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                Показано {products.length} из {list.total}
+              </p>
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="mt-2 w-full rounded-full border transition-colors"
+                style={{
+                  borderColor: "var(--color-accent)",
+                  backgroundColor: "#fffdf7",
+                  color: "var(--color-text)",
+                  fontFamily: "var(--font-body)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  minHeight: 44,
+                  opacity: loadingMore ? 0.6 : 1,
+                }}
+              >
+                {loadingMore ? "Загружаем…" : "Показать ещё"}
+              </button>
+            </>
+          )}
+        </>
       )}
     </div>
   );
