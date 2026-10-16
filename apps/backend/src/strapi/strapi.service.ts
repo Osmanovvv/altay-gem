@@ -49,6 +49,9 @@ export interface StrapiCategory {
   subcategories?: Array<{ name: string; sortOrder: number }> | null;
 }
 
+/** = rest.maxLimit в apps/strapi/config/api.ts: больше Strapi за раз не отдаёт. */
+const STRAPI_PAGE_LIMIT = 100;
+
 /**
  * Слаги связанных категорий из ответа Strapi.
  *
@@ -127,19 +130,33 @@ export class StrapiService {
     return (await res.json()) as T;
   }
 
+  /**
+   * Все записи коллекции, порциями по STRAPI_PAGE_LIMIT.
+   *
+   * ПОЧЕМУ start/limit, А НЕ page/pageSize. Strapi урезает размер порции до
+   * rest.maxLimit (apps/strapi/config/api.ts, 100), а смещение страницы считает
+   * от ЗАПРОШЕННОГО размера: page=2&pageSize=200 — это «100 записей начиная с
+   * 200-й». Бэкенд просил по 200 и получал каждую вторую сотню: когда каталог
+   * вырос до 1079 карточек, на витрину попадали 579, остальные молча
+   * пропадали, хотя в админке всё было заполнено (найдено 16.10.2026).
+   * Смещение по фактически полученному (start = out.length) пропустить ничего
+   * не может, какой бы лимит ни стоял в Strapi.
+   */
   private async fetchAll<T>(path: string, params: string): Promise<T[]> {
     const out: T[] = [];
-    let page = 1;
     for (;;) {
       const res = await this.fetchJson<{
         data: T[];
-        meta: { pagination: { page: number; pageCount: number } };
+        meta: { pagination: { total?: number } };
       }>(
-        `${path}?${params}&pagination[page]=${page}&pagination[pageSize]=200`,
+        `${path}?${params}&pagination[start]=${out.length}&pagination[limit]=${STRAPI_PAGE_LIMIT}`,
       );
       out.push(...res.data);
-      if (page >= res.meta.pagination.pageCount) return out;
-      page += 1;
+      const total = res.meta.pagination.total;
+      // пустая порция — выход, даже если total больше: записи могли удалить на ходу
+      if (res.data.length === 0 || (total !== undefined && out.length >= total)) {
+        return out;
+      }
     }
   }
 
