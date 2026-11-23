@@ -78,6 +78,7 @@ export interface ProductInternal {
 }
 
 const CACHE_KEY = 'catalog:enriched:v2'; // v2: карточка получила pickupAvailability
+const STRAPI_PRODUCTS_CACHE_KEY = 'catalog:strapi-products:v1';
 const CACHE_TTL_S = 60;
 
 /**
@@ -91,6 +92,13 @@ export class CatalogService {
   private readonly log = new Logger(CatalogService.name);
   /** Буфер против двойной продажи: сколько единиц не показываем (ТЗ п.8). */
   private readonly safetyBuffer: number;
+  /** Эпоха кеша: отменяет запись в Redis от промаха, устаревшего из-за invalidate(). */
+  private cacheEpoch = 0;
+  private strapiProductsInFlight: Promise<StrapiProduct[]> | null = null;
+  private buildAllInFlight: Promise<{
+    cards: ProductCard[];
+    internal: Map<string, ProductInternal>;
+  }> | null = null;
 
   constructor(
     @Inject(DB) private readonly db: Database,
@@ -99,6 +107,30 @@ export class CatalogService {
     config: ConfigService,
   ) {
     this.safetyBuffer = config.get<number>('EVOTOR_STOCK_SAFETY_BUFFER') ?? 1;
+  }
+
+  /** Видимые товары из Strapi (кеш Redis 60 с + дедупликация одновременных промахов). */
+  async strapiProducts(): Promise<StrapiProduct[]> {
+    const cached = await this.cache.get<StrapiProduct[]>(
+      STRAPI_PRODUCTS_CACHE_KEY,
+    );
+    if (cached) return cached;
+    if (this.strapiProductsInFlight) return this.strapiProductsInFlight;
+
+    const epoch = this.cacheEpoch;
+    const run = (async () => {
+      const products = await this.strapi.products();
+      if (epoch === this.cacheEpoch) {
+        await this.cache.set(STRAPI_PRODUCTS_CACHE_KEY, products, CACHE_TTL_S);
+      }
+      return products;
+    })().finally(() => {
+      if (this.strapiProductsInFlight === run) {
+        this.strapiProductsInFlight = null;
+      }
+    });
+    this.strapiProductsInFlight = run;
+    return run;
   }
 
   /** Полный обогащённый список видимых товаров (кешируется). */
@@ -122,9 +154,35 @@ export class CatalogService {
     if (cached) {
       return { cards: cached.cards, internal: new Map(cached.internal) };
     }
+    if (this.buildAllInFlight) return this.buildAllInFlight;
 
+    const epoch = this.cacheEpoch;
+    const run = this.computeCatalog()
+      .then(async (result) => {
+        if (epoch === this.cacheEpoch) {
+          await this.cache.set(
+            CACHE_KEY,
+            { cards: result.cards, internal: [...result.internal.entries()] },
+            CACHE_TTL_S,
+          );
+        }
+        return result;
+      })
+      .finally(() => {
+        if (this.buildAllInFlight === run) {
+          this.buildAllInFlight = null;
+        }
+      });
+    this.buildAllInFlight = run;
+    return run;
+  }
+
+  private async computeCatalog(): Promise<{
+    cards: ProductCard[];
+    internal: Map<string, ProductInternal>;
+  }> {
     const [strapiProducts, replica, reserved, stores] = await Promise.all([
-      this.strapi.products(),
+      this.strapiProducts(),
       this.db
         .select({
           storeId: evotorProducts.storeId,
@@ -234,16 +292,14 @@ export class CatalogService {
         isMarked: rep.isMarked,
       });
     }
-    await this.cache.set(
-      CACHE_KEY,
-      { cards, internal: [...internal.entries()] },
-      CACHE_TTL_S,
-    );
     return { cards, internal };
   }
 
   /** Сброс кеша каталога (создание заказа, события Эвотора/Strapi). */
   async invalidate(): Promise<void> {
+    this.cacheEpoch += 1;
+    this.strapiProductsInFlight = null;
+    this.buildAllInFlight = null;
     await this.cache.invalidatePrefix('catalog:');
   }
 
@@ -324,17 +380,24 @@ export class CatalogService {
   /** Полная карточка + «с этим покупают» (та же категория, до 4). */
   async productBySlug(slug: string): Promise<ProductDetail | null> {
     const [strapiProducts, cards] = await Promise.all([
-      this.strapi.products(),
+      this.strapiProducts(),
       this.enrichedProducts(),
     ]);
     const sp = strapiProducts.find((p) => p.slug === slug);
     const card = cards.find((c) => c.slug === slug);
     if (!sp || !card) return null;
+    return this.buildProductDetail(sp, card, cards);
+  }
 
+  private buildProductDetail(
+    sp: StrapiProduct,
+    card: ProductCard,
+    cards: ProductCard[],
+  ): ProductDetail {
     const related = cards
       .filter(
         (c) =>
-          c.slug !== slug &&
+          c.slug !== sp.slug &&
           // null===null матчил бы ЧУЖИЕ бескатегорийные товары в «похожие».
           card.categorySlug !== null &&
           c.categorySlug === card.categorySlug &&
@@ -380,11 +443,17 @@ export class CatalogService {
     hits: ProductCard[];
   }> {
     const [strapiProducts, cards] = await Promise.all([
-      this.strapi.products(),
+      this.strapiProducts(),
       this.enrichedProducts(),
     ]);
     const heroSp = strapiProducts.find((p) => p.heroProduct);
-    const hero = heroSp ? await this.productBySlug(heroSp.slug) : null;
+    const heroCard = heroSp
+      ? cards.find((c) => c.slug === heroSp.slug)
+      : undefined;
+    const hero =
+      heroSp && heroCard
+        ? this.buildProductDetail(heroSp, heroCard, cards)
+        : null;
     const hitSlugs = new Set(
       strapiProducts.filter((p) => p.isHit).map((p) => p.slug),
     );

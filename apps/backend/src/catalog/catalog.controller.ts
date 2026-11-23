@@ -6,7 +6,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { relationSlugs, StrapiService } from '../strapi/strapi.service';
-import { CatalogService, ProductCard } from './catalog.service';
+import { CatalogService } from './catalog.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { sortCards, type SortKey } from './sort-cards';
 import { matchesQuery } from './search-text';
@@ -156,7 +156,7 @@ export class CatalogController {
         (x) => x.evotorUuid,
       ),
     );
-    const strapiProducts = await this.strapi.products();
+    const strapiProducts = await this.catalog.strapiProducts();
     const memberSlugs = new Set(
       strapiProducts
         .filter((sp) => memberUuids.has(sp.evotorUuid))
