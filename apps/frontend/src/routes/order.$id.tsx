@@ -3,20 +3,11 @@ import { CheckCircle2, Clock, MapPin, Package, XCircle } from "lucide-react";
 
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { useOrderStatusPolling } from "@/hooks/useOrderStatusPolling";
 import { ApiError, fetchOrder, type ApiOrderStatus } from "@/lib/api";
+import { ORDER_STATUS_LABELS } from "@/lib/order-status";
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
-
-const STATUS_LABELS: Record<string, string> = {
-  new: "Принят",
-  awaiting_payment: "Ожидает оплаты",
-  paid: "Оплачен",
-  assembling: "Собирается",
-  ready_for_pickup: "Готов к выдаче",
-  shipped: "Передан в доставку",
-  completed: "Выполнен",
-  cancelled: "Отменён",
-};
 
 /** Страница заказа «спасибо/статус»: /order/{id}?token=… (ТЗ 6.7, р.9). */
 export const Route = createFileRoute("/order/$id")({
@@ -42,7 +33,10 @@ export const Route = createFileRoute("/order/$id")({
 });
 
 function OrderPage() {
-  const { order } = Route.useLoaderData();
+  const { order: initialOrder } = Route.useLoaderData();
+  const { id } = Route.useParams();
+  const { token } = Route.useSearch();
+  const order = useOrderStatusPolling(initialOrder, id, token);
 
   return (
     <div style={{ backgroundColor: "var(--color-bg-cream)", minHeight: "100vh" }}>
@@ -91,7 +85,7 @@ function OrderPage() {
                   }}
                 >
                   <Clock size={14} />
-                  {STATUS_LABELS[order.status] ?? order.status}
+                  {ORDER_STATUS_LABELS[order.status] ?? order.status}
                 </span>
               </div>
             </div>

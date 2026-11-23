@@ -1,21 +1,12 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Clock, MapPin, Package } from "lucide-react";
 
+import { useOrderStatusPolling } from "@/hooks/useOrderStatusPolling";
 import { ApiError, fetchOrder } from "@/lib/api";
 import { maxBridge, openExternal } from "@/lib/max-bridge";
+import { ORDER_STATUS_LABELS } from "@/lib/order-status";
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
-
-const STATUS_LABELS: Record<string, string> = {
-  new: "Новый",
-  awaiting_payment: "Ожидает оплаты",
-  paid: "Оплачен",
-  assembling: "Собирается",
-  ready_for_pickup: "Готов к выдаче",
-  shipped: "Передан в доставку",
-  completed: "Выполнен",
-  cancelled: "Отменён",
-};
 
 /**
  * Статус заказа в мини-аппе (ТЗ р.13). Доступ по токену из ссылки — тот же
@@ -39,7 +30,10 @@ export const Route = createFileRoute("/max/order/$id")({
 });
 
 function MaxOrder() {
-  const { order } = Route.useLoaderData();
+  const { order: initialOrder } = Route.useLoaderData();
+  const { id } = Route.useParams();
+  const { token } = Route.useSearch();
+  const order = useOrderStatusPolling(initialOrder, id, token);
 
   if (!order) {
     return (
@@ -97,12 +91,11 @@ function MaxOrder() {
           fontFamily: "var(--font-body)",
           fontSize: 14,
           fontWeight: 600,
-          color:
-            order.status === "cancelled" ? "var(--color-error)" : "var(--color-accent-dark)",
+          color: order.status === "cancelled" ? "var(--color-error)" : "var(--color-accent-dark)",
         }}
       >
         <Clock size={14} />
-        {STATUS_LABELS[order.status] ?? order.status}
+        {ORDER_STATUS_LABELS[order.status] ?? order.status}
       </span>
 
       <p
@@ -216,7 +209,9 @@ function MaxOrder() {
         )}
         <Row
           label="Доставка"
-          value={order.totals.deliveryRub === 0 ? "бесплатно" : formatPrice(order.totals.deliveryRub)}
+          value={
+            order.totals.deliveryRub === 0 ? "бесплатно" : formatPrice(order.totals.deliveryRub)
+          }
         />
         <div
           className="mt-2 flex items-baseline justify-between"
