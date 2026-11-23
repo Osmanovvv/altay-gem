@@ -108,8 +108,14 @@ export function normalizeName(name: string): string {
   return name.toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
 }
 
+/** Внутренние кассовые штрихкоды Эвотора/весовых/локальных префиксов (`20`–`29`, `100000...`). */
+export function isInternalBarcode(barcode: string): boolean {
+  return /^2[0-9]/.test(barcode) || /^100000/.test(barcode);
+}
+
 /**
  * Ключ матчинга «одинаковых» товаров двух магазинов (см. схему БД):
+ * первый не внутренний штрихкод (не `20`–`29` / `100000...`) →
  * первый штрихкод → артикул → нормализованное имя.
  */
 export function buildMatchKey(p: {
@@ -117,7 +123,9 @@ export function buildMatchKey(p: {
   article: string | null;
   name: string;
 }): string {
-  return p.barcodes[0] ?? p.article ?? normalizeName(p.name);
+  const preferredBarcode =
+    p.barcodes.find((barcode) => !isInternalBarcode(barcode)) ?? p.barcodes[0];
+  return preferredBarcode ?? p.article ?? normalizeName(p.name);
 }
 
 /** Маркированный тип («Честный знак»): *_MARKED, но не *_NOT_MARKED. */

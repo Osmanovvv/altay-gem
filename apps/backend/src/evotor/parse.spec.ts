@@ -43,6 +43,45 @@ describe('buildMatchKey', () => {
       buildMatchKey({ barcodes: [], article: null, name: '  Мёд  Алтайский ' }),
     ).toBe('мед алтайский');
   });
+  it('предпочитает заводской штрихкод внутреннему (20–29, 100000...)', () => {
+    expect(
+      buildMatchKey({
+        barcodes: ['2000000000060', '4607068350021'],
+        article: 'A-1',
+        name: 'Товар',
+      }),
+    ).toBe('4607068350021');
+    expect(
+      buildMatchKey({
+        barcodes: ['2100000000060', '4607068350021'],
+        article: null,
+        name: 'Товар',
+      }),
+    ).toBe('4607068350021');
+    expect(
+      buildMatchKey({
+        barcodes: ['1000000001234', '4607068350021'],
+        article: null,
+        name: 'Товар',
+      }),
+    ).toBe('4607068350021');
+  });
+  it('сохраняет первый внутренний, если заводского нет, и порядок двух заводских', () => {
+    expect(
+      buildMatchKey({
+        barcodes: ['2000000000060', '2100000000077'],
+        article: 'A-1',
+        name: 'Товар',
+      }),
+    ).toBe('2000000000060');
+    expect(
+      buildMatchKey({
+        barcodes: ['4607068350021', '4640018530296'],
+        article: null,
+        name: 'Товар',
+      }),
+    ).toBe('4607068350021');
+  });
   it('нормализация имени: регистр, ё, пробелы', () => {
     expect(normalizeName('Сгущёнка  ГОСТ')).toBe('сгущенка гост');
   });
