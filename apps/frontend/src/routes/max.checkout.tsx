@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, Check } from "lucide-react";
+
+import { PrivacyPolicySheet } from "@/components/max/PrivacyPolicySheet";
 
 import { useCart } from "@/context/CartContext";
 import { usePhoneMask } from "@/hooks/usePhoneMask";
@@ -25,6 +27,17 @@ import {
 } from "@/lib/checkout-rules";
 
 const formatPrice = (v: number) => `${v.toLocaleString("ru-RU")} ₽`;
+
+const CONSENT_TRIGGER_STYLE: React.CSSProperties = {
+  color: "var(--color-accent-dark)",
+  textDecoration: "underline",
+  background: "transparent",
+  border: 0,
+  padding: 0,
+  cursor: "pointer",
+  font: "inherit",
+  textAlign: "left",
+};
 
 /** Ключ последнего заказа — вкладка «Заказ» открывает его без ввода номера. */
 export const LAST_ORDER_KEY = "altai-max-last-order";
@@ -69,6 +82,7 @@ function MaxCheckout() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const idempotencyKey = useMemo(
     () => `max-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
@@ -326,12 +340,9 @@ function MaxCheckout() {
         {/* То же, что на витрине: оговорка там, где данные собирают. */}
         <p style={{ fontSize: 12, lineHeight: 1.45, color: "var(--color-text-muted)" }}>
           {contactsNotice()}{" "}
-          <Link
-            to="/privacy"
-            style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}
-          >
+          <button type="button" onClick={() => setPrivacyOpen(true)} style={CONSENT_TRIGGER_STYLE}>
             {CONSENT_LINK_TEXT}
-          </Link>
+          </button>
         </p>
       </Section>
 
@@ -494,13 +505,12 @@ function MaxCheckout() {
         }}
       >
         {consentPrefix(payment)}{" "}
-        <Link
-          to="/privacy"
-          style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}
-        >
+        <button type="button" onClick={() => setPrivacyOpen(true)} style={CONSENT_TRIGGER_STYLE}>
           {CONSENT_LINK_TEXT}
-        </Link>
+        </button>
       </p>
+
+      <PrivacyPolicySheet open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
 
       <div
         className="fixed inset-x-0 z-40 px-4 py-3"
