@@ -66,6 +66,7 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
           <Link
             key={chip}
             to="/catalog"
+            search={product.category ? { category: product.category } : {}}
             className="rounded-full transition-colors hover:bg-black/5"
             style={{
               fontFamily: "var(--font-body)",

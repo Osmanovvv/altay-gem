@@ -31,6 +31,7 @@ import {
   contactsNotice,
   submitLabelFor,
 } from "@/lib/checkout-rules";
+import { orderProblemLines, priceUpdates } from "@/lib/order-problems";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -90,8 +91,17 @@ function normalizePhone(value: string): string {
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getCartTotal, getCartCount, hasPerishable, clearCart, promoCode, ready } =
-    useCart();
+  const {
+    items,
+    addToCart,
+    getCartTotal,
+    getPromoDiscount,
+    getCartCount,
+    hasPerishable,
+    clearCart,
+    promoCode,
+    ready,
+  } = useCart();
   const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -117,6 +127,7 @@ function CheckoutPage() {
 
   const perishable = hasPerishable();
   const total = getCartTotal();
+  const promoDiscount = getPromoDiscount();
   const count = getCartCount();
   const isPickup = form.delivery === "pickup_leningradskaya" || form.delivery === "pickup_titova";
 
@@ -401,20 +412,11 @@ function CheckoutPage() {
       });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        const details = (err.body.details ?? []) as Array<{
-          id?: string;
-          reason?: string;
-          availableQty?: number;
-          actualPriceRub?: number;
-        }>;
-        const lines = details.map((d) => {
-          if (d.reason === "out_of_stock")
-            return `«${nameOf(d.id)}»: доступно только ${d.availableQty ?? 0}`;
-          if (d.reason === "price_changed")
-            return `«${nameOf(d.id)}»: цена изменилась (теперь ${d.actualPriceRub} ₽)`;
-          if (d.reason === "unknown_item") return `«${nameOf(d.id)}»: товар недоступен`;
-          return d.reason ?? "";
-        });
+        for (const u of priceUpdates(err.body.details)) {
+          const item = items.find((i) => i.product.id === u.id);
+          if (item) addToCart({ ...item.product, price: u.priceRub }, 0);
+        }
+        const lines = orderProblemLines(err.body.details, nameOf);
         toast.error(String(err.message), {
           description: lines.filter(Boolean).join("; ") || undefined,
         });
@@ -882,11 +884,14 @@ function CheckoutPage() {
                 <aside className="hidden lg:block">
                   <div className="sticky top-24">
                     <OrderSummary
-                      count={count}
-                      total={form.delivery && !quote ? null : total + (quote?.deliveryRub ?? 0)}
-                      subtotal={total}
-                      deliveryCost={quote ? quote.deliveryRub : null}
-                      deliveryLabel={deliveryLabel || "—"}
+                      {...buildOrderSummaryProps({
+                        count,
+                        total,
+                        promoDiscount,
+                        hasDelivery: Boolean(form.delivery),
+                        quote,
+                        deliveryLabel: deliveryLabel || "—",
+                      })}
                     />
                   </div>
                 </aside>
@@ -894,11 +899,14 @@ function CheckoutPage() {
                 {/* Mobile summary */}
                 <div className="lg:hidden">
                   <OrderSummary
-                    count={count}
-                    total={form.delivery && !quote ? null : total + (quote?.deliveryRub ?? 0)}
-                    subtotal={total}
-                    deliveryCost={quote ? quote.deliveryRub : null}
-                    deliveryLabel={deliveryLabel || "—"}
+                    {...buildOrderSummaryProps({
+                      count,
+                      total,
+                      promoDiscount,
+                      hasDelivery: Boolean(form.delivery),
+                      quote,
+                      deliveryLabel: deliveryLabel || "—",
+                    })}
                   />
                 </div>
               </div>
@@ -1191,10 +1199,45 @@ function ReviewBlock({ label, children }: { label: string; children: React.React
   );
 }
 
+function buildOrderSummaryProps({
+  count,
+  total,
+  promoDiscount,
+  hasDelivery,
+  quote,
+  deliveryLabel,
+}: {
+  count: number;
+  total: number;
+  promoDiscount: number;
+  hasDelivery: boolean;
+  quote: ApiDeliveryQuote | null | undefined;
+  deliveryLabel: string;
+}) {
+  let orderTotal: number | null;
+  if (hasDelivery && !quote) {
+    orderTotal = null;
+  } else if (quote) {
+    orderTotal = quote.totalRub;
+  } else {
+    orderTotal = Math.max(0, total - promoDiscount);
+  }
+
+  return {
+    count,
+    subtotal: quote ? quote.subtotalRub : total,
+    discountRub: quote ? quote.discountRub : promoDiscount,
+    total: orderTotal,
+    deliveryCost: quote ? quote.deliveryRub : null,
+    deliveryLabel,
+  };
+}
+
 function OrderSummary({
   count,
   total,
   subtotal,
+  discountRub = 0,
   deliveryCost,
   deliveryLabel,
 }: {
@@ -1202,6 +1245,7 @@ function OrderSummary({
   /** null — доставка ещё не посчитана: показываем «—», а не сумму без неё. */
   total: number | null;
   subtotal: number;
+  discountRub?: number;
   deliveryCost: number | null;
   deliveryLabel: string;
 }) {
@@ -1228,6 +1272,7 @@ function OrderSummary({
         Ваш заказ
       </h3>
       <SummaryLine label={`Товары (${count})`} value={formatPrice(subtotal)} />
+      {discountRub > 0 && <SummaryLine label="Скидка" value={`−${formatPrice(discountRub)}`} />}
       <SummaryLine
         label="Доставка"
         value={
