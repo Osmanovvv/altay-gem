@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { MapPin, Minus, Plus, ShoppingBag, Truck } from "lucide-react";
+import { RichText } from "@/components/RichText";
 import type { Product } from "@/data/products";
 import { strikePrice } from "@/lib/price-view";
 import { productChips } from "@/lib/product-chips";
@@ -156,16 +157,15 @@ export function ProductInfo({ product, detail, onAdd }: ProductInfoProps) {
         </span>
       </div>
 
-      <p
-        style={{
-          fontFamily: "var(--font-body)",
-          fontSize: 15,
-          lineHeight: 1.6,
-          color: "var(--color-text-muted)",
-        }}
-      >
-        {longDesc}
-      </p>
+      {longDesc && (
+        <RichText
+          text={longDesc}
+          fontSize={15}
+          lineHeight={1.6}
+          color="var(--color-text-muted)"
+          strongColor="var(--color-text)"
+        />
+      )}
 
       {/* Delivery badge */}
       <div

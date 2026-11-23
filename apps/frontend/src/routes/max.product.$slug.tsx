@@ -1,5 +1,6 @@
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { ChevronLeft, Minus, Plus, ShoppingBag } from "lucide-react";
+import { RichText } from "@/components/RichText";
 import { useCart } from "@/context/CartContext";
 import { ApiError, fetchProduct, toProduct } from "@/lib/api";
 import { discountPercent, strikePrice } from "@/lib/price-view";
@@ -231,18 +232,14 @@ function MaxProduct() {
         )}
 
         {detail.fullDescription && (
-          <p
+          <RichText
+            text={detail.fullDescription}
             className="mt-4"
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: 14,
-              lineHeight: 1.55,
-              color: "var(--color-text)",
-              whiteSpace: "pre-line",
-            }}
-          >
-            {detail.fullDescription}
-          </p>
+            fontSize={14}
+            lineHeight={1.55}
+            color="var(--color-text)"
+            strongColor="var(--color-bg-dark)"
+          />
         )}
 
         {characteristics.length > 0 && (
