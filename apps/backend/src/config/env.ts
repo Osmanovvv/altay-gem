@@ -37,8 +37,11 @@ const envSchema = z.object({
   // Без ОБОИХ ключей вход в админку отключён (login отдаёт 503).
   ADMIN_PASSWORD: z.string().optional(),
   ADMIN_SESSION_SECRET: z.string().optional(),
-  // Публичный адрес сайта — для ссылки «Открыть заказ» в Telegram-уведомлении.
+  // Публичный адрес сайта (return_url ЮKassa и внешние ссылки на витрину).
   PUBLIC_SITE_URL: z.string().optional(),
+  // Полный URL раздела «Заказы» в админке Strapi для кнопки «Открыть заказ» в Telegram
+  // (например https://admin.site/<ADMIN_PATH>/plugins/orders). Пусто — кнопка не отправляется.
+  ADMIN_ORDERS_URL: z.string().optional(),
 
   // Почта покупателю (дубль заказа). Пусто — письма не отправляются.
   SMTP_HOST: z.string().optional(),

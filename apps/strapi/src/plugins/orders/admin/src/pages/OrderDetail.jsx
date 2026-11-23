@@ -22,7 +22,22 @@ export default function OrderDetail({ id, onBack }) {
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
-  if (!order) return <Box padding={8}>{error ? <Typography textColor="danger600">{error}</Typography> : <Loader>Загрузка…</Loader>}</Box>;
+  if (!order) {
+    return (
+      <Box padding={8}>
+        {error ? (
+          <Box>
+            <Button variant="tertiary" onClick={onBack}>← К списку</Button>
+            <Box paddingTop={3}>
+              <Typography textColor="danger600">{error}</Typography>
+            </Box>
+          </Box>
+        ) : (
+          <Loader>Загрузка…</Loader>
+        )}
+      </Box>
+    );
+  }
 
   const marked = order.items.filter((i) => i.isMarked);
   const allCodesIn = marked.every((i) => (i.markCodes?.length ?? 0) >= i.quantity);

@@ -61,6 +61,27 @@ export function buildNewOrderMessage(o: NewOrderNotice): string {
 }
 
 /**
+ * URL заказа в плагине Strapi для инлайн-кнопки в Telegram (`?order=<id>`).
+ * Возвращает null, если базовый URL не задан/некорректен или id невалиден.
+ */
+export function buildOrderAdminUrl(
+  baseUrl: string | undefined,
+  orderId: number,
+): string | null {
+  const raw = (baseUrl ?? '').trim();
+  if (!raw || !Number.isInteger(orderId) || orderId <= 0) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+    url.searchParams.set('order', String(orderId));
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Уведомления магазину в Telegram (этап 2, Вариант A — подтянуто из этапа 3).
  * Опционально: без TELEGRAM_BOT_TOKEN + TELEGRAM_ADMIN_CHAT_ID — тихий no-op
  * (заказы важнее уведомления; сбой Telegram не должен ронять заказ).
@@ -73,7 +94,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly chatId: string;
   /** Чат для тех-алертов исполнителю; по умолчанию — тот же, что для заказов. */
   private readonly alertChatId: string;
-  private readonly siteUrl: string;
+  private readonly adminOrdersUrl: string;
   private readonly enabled: boolean;
 
   /** Список получателей из админки: кеш на минуту, как у каталога. */
@@ -91,14 +112,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.chatId = config.get<string>('TELEGRAM_ADMIN_CHAT_ID', '');
     this.alertChatId =
       config.get<string>('TELEGRAM_ALERT_CHAT_ID', '') || this.chatId;
-    this.siteUrl = (config.get<string>('PUBLIC_SITE_URL', '') || '').replace(
-      /\/+$/,
-      '',
-    );
+    this.adminOrdersUrl = (
+      config.get<string>('ADMIN_ORDERS_URL', '') || ''
+    ).trim();
     // Достаточно токена: получатели могут быть заведены только в админке.
     this.enabled = Boolean(this.token);
     if (!this.enabled) {
       this.log.log('Telegram-уведомления выключены (нет TELEGRAM_BOT_TOKEN)');
+    } else if (!buildOrderAdminUrl(this.adminOrdersUrl, 1)) {
+      this.log.warn(
+        'ADMIN_ORDERS_URL не задан или некорректен — кнопка «Открыть заказ» в Telegram не будет добавляться',
+      );
     }
   }
 
@@ -190,16 +214,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   /** Уведомить магазин о новом заказе. Никогда не бросает исключение. */
   async notifyNewOrder(o: NewOrderNotice): Promise<void> {
     if (!this.enabled) return;
-    const replyMarkup = this.siteUrl
+    const orderUrl = buildOrderAdminUrl(this.adminOrdersUrl, o.id);
+    const replyMarkup = orderUrl
       ? {
-          inline_keyboard: [
-            [
-              {
-                text: 'Открыть заказ',
-                url: `${this.siteUrl}/admin?order=${o.id}`,
-              },
-            ],
-          ],
+          inline_keyboard: [[{ text: 'Открыть заказ', url: orderUrl }]],
         }
       : undefined;
     const chats = recipientsFor('order', await this.recipients(), {

@@ -1,5 +1,12 @@
+import { ConfigService } from '@nestjs/config';
 import { describe, expect, it } from 'bun:test';
-import { buildAlertMessage, buildNewOrderMessage } from './telegram.service';
+import type { StrapiService } from '../strapi/strapi.service';
+import {
+  buildAlertMessage,
+  buildNewOrderMessage,
+  buildOrderAdminUrl,
+  TelegramService,
+} from './telegram.service';
 
 describe('buildNewOrderMessage', () => {
   const base = {
@@ -70,5 +77,108 @@ describe('buildAlertMessage', () => {
     expect(t).toContain('&lt;b&gt;x&lt;/b&gt;');
     expect(t).toContain('a &amp; b &lt; c');
     expect(t).not.toContain('<b>x</b>');
+  });
+});
+
+describe('buildOrderAdminUrl', () => {
+  it('добавляет ?order=<id> к URL плагина заказов Strapi (с хвостовым / и без)', () => {
+    expect(
+      buildOrderAdminUrl('https://admin.example.com/panel/plugins/orders', 42),
+    ).toBe('https://admin.example.com/panel/plugins/orders?order=42');
+    expect(
+      buildOrderAdminUrl(' https://admin.example.com/panel/plugins/orders/// ', 7),
+    ).toBe('https://admin.example.com/panel/plugins/orders?order=7');
+  });
+
+  it('сохраняет существующие query-параметры', () => {
+    expect(
+      buildOrderAdminUrl(
+        'https://admin.example.com/panel/plugins/orders?tab=orders',
+        15,
+      ),
+    ).toBe('https://admin.example.com/panel/plugins/orders?tab=orders&order=15');
+  });
+
+  it('возвращает null при пустом, невалидном URL или некорректном id', () => {
+    expect(buildOrderAdminUrl(undefined, 42)).toBeNull();
+    expect(buildOrderAdminUrl('', 42)).toBeNull();
+    expect(buildOrderAdminUrl('not-a-url', 42)).toBeNull();
+    expect(buildOrderAdminUrl('javascript:alert(1)', 42)).toBeNull();
+    expect(buildOrderAdminUrl('https://admin.example.com/panel/plugins/orders', 0)).toBeNull();
+    expect(buildOrderAdminUrl('https://admin.example.com/panel/plugins/orders', -5)).toBeNull();
+    expect(buildOrderAdminUrl('https://admin.example.com/panel/plugins/orders', 1.5)).toBeNull();
+  });
+});
+
+describe('TelegramService.notifyNewOrder', () => {
+  const sampleOrder = {
+    id: 42,
+    orderNumber: 'ALT-000042',
+    customerName: 'Иван Тестов',
+    customerPhone: '+79990001122',
+    deliveryMethod: 'pickup_leningradskaya',
+    items: [{ name: 'Мёд донниковый', quantity: 2 }],
+    totalRub: 1780,
+    source: 'web',
+  };
+
+  it('отправляет кнопку «Открыть заказ» на ADMIN_ORDERS_URL', async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+      return new Response('{"ok":true}', { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const svc = new TelegramService(
+        new ConfigService({
+          TELEGRAM_BOT_TOKEN: 'bot-token',
+          TELEGRAM_ADMIN_CHAT_ID: '12345',
+          PUBLIC_SITE_URL: 'https://ecomarket-altai.ru',
+          ADMIN_ORDERS_URL: 'https://admin.example.com/panel/plugins/orders/',
+        }),
+        { notificationRecipients: async () => [] } as unknown as StrapiService,
+      );
+      await svc.notifyNewOrder(sampleOrder);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].reply_markup).toEqual({
+        inline_keyboard: [
+          [
+            {
+              text: 'Открыть заказ',
+              url: 'https://admin.example.com/panel/plugins/orders?order=42',
+            },
+          ],
+        ],
+      });
+    } finally {
+      globalThis.fetch = prevFetch;
+    }
+  });
+
+  it('не добавляет мёртвую ссылку /admin?order=, если ADMIN_ORDERS_URL не задан', async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+      return new Response('{"ok":true}', { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const svc = new TelegramService(
+        new ConfigService({
+          TELEGRAM_BOT_TOKEN: 'bot-token',
+          TELEGRAM_ADMIN_CHAT_ID: '12345',
+          PUBLIC_SITE_URL: 'https://ecomarket-altai.ru',
+        }),
+        { notificationRecipients: async () => [] } as unknown as StrapiService,
+      );
+      await svc.notifyNewOrder(sampleOrder);
+      expect(sent).toHaveLength(1);
+      expect('reply_markup' in sent[0]).toBe(false);
+    } finally {
+      globalThis.fetch = prevFetch;
+    }
   });
 });

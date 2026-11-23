@@ -3,6 +3,7 @@ import { Box, Button, Flex } from '@strapi/design-system';
 import OrdersList from './OrdersList';
 import OrderDetail from './OrderDetail';
 import EvotorSync from './EvotorSync';
+import { parseOrderIdFromSearch, stripOrderParamFromUrl } from '../order-query';
 
 /**
  * Две вкладки одного раздела: заказы (ежедневная работа) и обмен с Эвотором
@@ -10,11 +11,20 @@ import EvotorSync from './EvotorSync';
  * теперь это делается здесь же, без доступа к серверу.
  */
 export default function App() {
-  const [openedId, setOpenedId] = useState(null);
+  const [openedId, setOpenedId] = useState(() =>
+    parseOrderIdFromSearch(typeof window !== 'undefined' ? window.location.search : ''),
+  );
   const [tab, setTab] = useState('orders');
 
+  const handleBack = () => {
+    setOpenedId(null);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', stripOrderParamFromUrl(window.location.href));
+    }
+  };
+
   if (openedId) {
-    return <OrderDetail id={openedId} onBack={() => setOpenedId(null)} />;
+    return <OrderDetail id={openedId} onBack={handleBack} />;
   }
 
   return (
